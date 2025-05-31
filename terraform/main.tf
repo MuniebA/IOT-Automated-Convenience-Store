@@ -26,7 +26,7 @@ provider "aws" {
       Environment = var.environment
       Project     = var.project_name
       ManagedBy   = "terraform"
-      CreatedDate = formatdate("YYYY-MM-DD", timestamp())
+      CreatedDate = "2025-05-31"
     }
   }
 }
