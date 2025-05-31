@@ -97,8 +97,9 @@ if not exist "lambda_session_processor.py" (
     exit /b 1
 )
 
-if not exist "admin_ui_setup.sh" (
-    echo [ERROR] admin_ui_setup.sh not found in current directory
+if not exist "admin_ui_bootstrap.sh" (
+    echo [ERROR] admin_ui_bootstrap.sh not found in current directory
+    echo [INFO] Please create admin_ui_bootstrap.sh file (short bootstrap script)
     pause
     exit /b 1
 )
