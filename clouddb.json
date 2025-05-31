@@ -1,0 +1,495 @@
+{
+    "_description": "AWS DynamoDB Schema - PRIMARY STORAGE for IoT Convenience Store",
+    "_purpose": "ALL persistent data stored here - Pis only access, never store permanently",
+    "_security": "Single source of truth for all customer, product, and transaction data",
+    
+    "tables": {
+      
+      "store-customers-prod": {
+        "description": "Customer profiles and RFID authentication (PRIMARY STORAGE)",
+        "primary_key": {
+          "partition_key": "customer_id",
+          "type": "String"
+        },
+        "global_secondary_indexes": [
+          {
+            "index_name": "rfid-lookup-index", 
+            "partition_key": "rfid_card_uid",
+            "purpose": "Real-time RFID authentication for all Pi devices"
+          }
+        ],
+        "attributes": {
+          "customer_id": "String (Primary Key)",
+          "rfid_card_uid": "String (Encrypted, Unique)",
+          "customer_name": "String",
+          "email": "String",
+          "phone": "String",
+          "customer_type": "String (REGULAR | VIP | EMPLOYEE | ADMIN)",
+          "discount_percentage": "Number (Decimal)",
+          "membership_status": "String (ACTIVE | SUSPENDED | EXPIRED)",
+          "access_permissions": "List (Array of permissions)",
+          "total_visits": "Number",
+          "total_spent": "Number (Decimal)",
+          "fraud_incidents": "Number",
+          "last_visit": "String (ISO DateTime)",
+          "checkout_required": "Boolean (for door exit control)",
+          "created_at": "String (ISO DateTime)",
+          "updated_at": "String (ISO DateTime)"
+        },
+        "access_patterns": [
+          "Pi scans RFID → Real-time lookup by rfid_card_uid",
+          "Cart needs customer info → Query by customer_id", 
+          "Door checks exit permission → Get checkout_required status"
+        ]
+      },
+  
+      "store-products-prod": {
+        "description": "Product catalog with pricing and inventory (PRIMARY STORAGE)",
+        "primary_key": {
+          "partition_key": "product_id",
+          "type": "String"
+        },
+        "global_secondary_indexes": [
+          {
+            "index_name": "rfid-lookup-index",
+            "partition_key": "product_rfid", 
+            "purpose": "Real-time product RFID lookups during cart scanning"
+          },
+          {
+            "index_name": "category-index",
+            "partition_key": "category",
+            "purpose": "Shelf product management by category"
+          }
+        ],
+        "attributes": {
+          "product_id": "String (Primary Key)",
+          "product_rfid": "String (Unique)",
+          "product_name": "String",
+          "description": "String",
+          "category": "String",
+          "regular_price": "Number (Decimal)",
+          "current_price": "Number (Decimal)",
+          "vip_price": "Number (Decimal)",
+          "weight_per_unit": "Number (grams)",
+          "is_grocery": "Boolean",
+          "barcode": "String",
+          "supplier": "String",
+          "inventory_level": "Number",
+          "reorder_threshold": "Number",
+          "shelf_life_days": "Number",
+          "is_premium": "Boolean (for smart shelf)",
+          "discount_eligible": "Boolean",
+          "fraud_detection_settings": "Map (weight tolerance, etc.)",
+          "is_active": "Boolean",
+          "created_at": "String (ISO DateTime)",
+          "updated_at": "String (ISO DateTime)"
+        },
+        "access_patterns": [
+          "Cart scans product RFID → Real-time lookup by product_rfid",
+          "Shelf displays products → Query by category + is_premium",
+          "Inventory management → Query by inventory_level < reorder_threshold"
+        ]
+      },
+  
+      "store-sessions-prod": {
+        "description": "Customer shopping sessions across all nodes (PRIMARY STORAGE)",
+        "primary_key": {
+          "partition_key": "session_id",
+          "type": "String"
+        },
+        "global_secondary_indexes": [
+          {
+            "index_name": "customer-time-index",
+            "partition_key": "customer_id",
+            "sort_key": "start_time",
+            "purpose": "Query active sessions by customer for door exit validation"
+          },
+          {
+            "index_name": "node-active-index", 
+            "partition_key": "node_id",
+            "sort_key": "session_status",
+            "purpose": "Find active sessions by specific cart/door/shelf"
+          }
+        ],
+        "attributes": {
+          "session_id": "String (Primary Key)",
+          "customer_id": "String",
+          "store_id": "String",
+          "node_id": "String (cart-001, door-001, shelf-001)",
+          "node_type": "String (smart-cart, door-access, smart-shelf)",
+          "start_time": "String (ISO DateTime)",
+          "end_time": "String (ISO DateTime, nullable)",
+          "session_status": "String (active | completed | abandoned | suspended)",
+          "total_items": "Number",
+          "total_amount": "Number (Decimal)",
+          "discount_applied": "Number (Decimal)",
+          "final_amount": "Number (Decimal)",
+          "fraud_event_count": "Number",
+          "has_fraud_alerts": "Boolean",
+          "fraud_types": "Map (Object of fraud type counts)",
+          "checkout_completed": "Boolean",
+          "door_exit_allowed": "Boolean",
+          "payment_method": "String",
+          "items": "List (Array of cart items)",
+          "sensor_data_summary": "Map (total weight, item count validation)",
+          "processed_at": "String (ISO DateTime)"
+        },
+        "access_patterns": [
+          "Cart starts session → Create new session record",
+          "Door checks exit → Query active session by customer_id",
+          "Real-time updates → Update session as items scanned"
+        ]
+      },
+  
+      "store-transactions-prod": {
+        "description": "Individual item transactions and payments (PRIMARY STORAGE)",
+        "primary_key": {
+          "partition_key": "transaction_id",
+          "sort_key": "session_id",
+          "type": "String"
+        },
+        "global_secondary_indexes": [
+          {
+            "index_name": "session-time-index",
+            "partition_key": "session_id",
+            "sort_key": "timestamp",
+            "purpose": "Get all transactions for a session in chronological order"
+          },
+          {
+            "index_name": "product-sales-index",
+            "partition_key": "product_id", 
+            "sort_key": "timestamp",
+            "purpose": "Analytics on product sales performance"
+          }
+        ],
+        "attributes": {
+          "transaction_id": "String (Primary Key)",
+          "session_id": "String (Sort Key)",
+          "customer_id": "String",
+          "product_id": "String",
+          "product_rfid": "String",
+          "timestamp": "String (ISO DateTime)",
+          "quantity": "Number",
+          "unit_price": "Number (Decimal)",
+          "discount_applied": "Number (Decimal)",
+          "final_price": "Number (Decimal)",
+          "weight_detected": "Number (grams)",
+          "weight_expected": "Number (grams)",
+          "validation_status": "String (valid | fraud | manual)",
+          "sensor_data": "Map (weight, ultrasonic, etc.)",
+          "node_id": "String",
+          "store_id": "String"
+        },
+        "access_patterns": [
+          "Cart adds item → Create transaction record immediately",
+          "Fraud detection → Query transactions with validation issues",
+          "Receipt generation → Get all transactions for session"
+        ]
+      },
+  
+      "store-fraud-events-prod": {
+        "description": "Fraud detection events from all nodes (PRIMARY STORAGE)",
+        "primary_key": {
+          "partition_key": "event_id",
+          "sort_key": "session_id",
+          "type": "String"
+        },
+        "global_secondary_indexes": [
+          {
+            "index_name": "session-fraud-index",
+            "partition_key": "session_id",
+            "sort_key": "timestamp",
+            "purpose": "Get all fraud events for a session"
+          },
+          {
+            "index_name": "severity-time-index",
+            "partition_key": "severity",
+            "sort_key": "timestamp", 
+            "purpose": "Monitor high-severity fraud events across all stores"
+          }
+        ],
+        "attributes": {
+          "event_id": "String (Primary Key)",
+          "session_id": "String (Sort Key)",
+          "timestamp": "String (ISO DateTime)",
+          "fraud_type": "String (unscanned_item, weight_mismatch, unauthorized_access, etc.)",
+          "severity": "String (low | medium | high | critical)",
+          "details": "String",
+          "node_type": "String (smart-cart, door-access, smart-shelf)",
+          "node_id": "String",
+          "customer_id": "String",
+          "sensor_data": "Map (Object with all sensor readings)",
+          "evidence": "Map (images, timestamps, measurements)",
+          "auto_resolved": "Boolean",
+          "staff_notified": "Boolean",
+          "resolution_notes": "String",
+          "false_positive": "Boolean"
+        },
+        "fraud_types": [
+          "unscanned_item", "weight_mismatch", "multiple_items", "missing_item",
+          "unauthorized_access", "shelf_tampering", "rfid_clone", "sensor_tampering"
+        ]
+      },
+  
+      "store-access-logs-prod": {
+        "description": "Door access events and security logs (PRIMARY STORAGE)",
+        "primary_key": {
+          "partition_key": "log_id",
+          "sort_key": "timestamp",
+          "type": "String"
+        },
+        "global_secondary_indexes": [
+          {
+            "index_name": "customer-access-index",
+            "partition_key": "customer_id",
+            "sort_key": "timestamp",
+            "purpose": "Customer access history and behavior analysis"
+          },
+          {
+            "index_name": "door-time-index",
+            "partition_key": "door_node_id",
+            "sort_key": "timestamp",
+            "purpose": "Door-specific access logs and security monitoring"
+          }
+        ],
+        "attributes": {
+          "log_id": "String (Primary Key)",
+          "timestamp": "String (Sort Key, ISO DateTime)",
+          "door_node_id": "String",
+          "customer_id": "String",
+          "rfid_card_uid": "String",
+          "event_type": "String (entry_attempt, entry_success, entry_denied, exit_success, etc.)",
+          "session_id": "String",
+          "access_granted": "Boolean",
+          "deny_reason": "String",
+          "servo_position": "Number (0=locked, 90=unlocked)",
+          "ir_sensor_status": "Boolean",
+          "door_open_duration": "Number (seconds)",
+          "offline_mode": "Boolean",
+          "emergency_access": "Boolean",
+          "store_id": "String"
+        },
+        "event_types": [
+          "entry_attempt", "entry_success", "entry_denied",
+          "exit_attempt", "exit_success", "exit_denied", 
+          "emergency_unlock", "maintenance_access"
+        ]
+      },
+  
+      "store-shelf-displays-prod": {
+        "description": "Smart shelf discount displays and customer interactions (PRIMARY STORAGE)",
+        "primary_key": {
+          "partition_key": "display_id",
+          "type": "String"
+        },
+        "global_secondary_indexes": [
+          {
+            "index_name": "shelf-time-index",
+            "partition_key": "shelf_node_id",
+            "sort_key": "start_time",
+            "purpose": "Query current and scheduled displays by shelf"
+          },
+          {
+            "index_name": "product-display-index",
+            "partition_key": "product_id",
+            "sort_key": "start_time",
+            "purpose": "Track which products are being displayed across shelves"
+          }
+        ],
+        "attributes": {
+          "display_id": "String (Primary Key)",
+          "shelf_node_id": "String",
+          "product_id": "String",
+          "start_time": "String (ISO DateTime)",
+          "end_time": "String (ISO DateTime)",
+          "original_price": "Number (Decimal)",
+          "discount_percentage": "Number (Decimal)",
+          "discounted_price": "Number (Decimal)",
+          "rotation_angle": "Number (servo position: 0=locked, 180=unlocked)",
+          "led_pattern": "String",
+          "led_colors": "Map (RGB settings)",
+          "priority_level": "String (low | medium | high | urgent)",
+          "target_customer_type": "String (all | vip | regular)",
+          "interactions_count": "Number",
+          "products_taken": "Number",
+          "revenue_generated": "Number (Decimal)",
+          "customer_interactions": "List (Array of customer access events)",
+          "effectiveness_score": "Number",
+          "is_active": "Boolean"
+        }
+      },
+  
+      "store-nodes-prod": {
+        "description": "IoT device registry and real-time health monitoring (PRIMARY STORAGE)",
+        "primary_key": {
+          "partition_key": "node_id",
+          "type": "String"
+        },
+        "global_secondary_indexes": [
+          {
+            "index_name": "type-store-index",
+            "partition_key": "node_type",
+            "sort_key": "store_id",
+            "purpose": "Query all devices by type across stores"
+          },
+          {
+            "index_name": "status-index",
+            "partition_key": "status",
+            "sort_key": "last_heartbeat",
+            "purpose": "Monitor offline or error devices"
+          }
+        ],
+        "attributes": {
+          "node_id": "String (Primary Key)",
+          "node_type": "String (smart-cart, door-access, smart-shelf)",
+          "store_id": "String",
+          "device_identifier": "String (cart-001, door-001, shelf-001)",
+          "mac_address": "String",
+          "ip_address": "String",
+          "location": "String",
+          "hardware_version": "String",
+          "firmware_version": "String",
+          "is_online": "Boolean",
+          "last_heartbeat": "String (ISO DateTime)",
+          "battery_level": "Number (percentage)",
+          "status": "String (active | maintenance | offline | error)",
+          "current_session_id": "String (if device is in use)",
+          "hardware_status": "Map (servo, sensors, display, etc.)",
+          "performance_metrics": "Map (cpu, memory, temperature)",
+          "error_log": "List (Recent errors)",
+          "uptime": "Number (seconds)",
+          "total_sessions_today": "Number",
+          "last_maintenance": "String (ISO DateTime)"
+        }
+      },
+  
+      "store-sensor-data-prod": {
+        "description": "Real-time sensor readings from all Pi devices (PRIMARY STORAGE)",
+        "primary_key": {
+          "partition_key": "reading_id",
+          "sort_key": "timestamp",
+          "type": "String"
+        },
+        "global_secondary_indexes": [
+          {
+            "index_name": "session-sensor-index",
+            "partition_key": "session_id",
+            "sort_key": "timestamp",
+            "purpose": "Get all sensor data for fraud analysis"
+          },
+          {
+            "index_name": "node-sensor-index",
+            "partition_key": "node_id",
+            "sort_key": "timestamp",
+            "purpose": "Monitor device sensor performance"
+          }
+        ],
+        "attributes": {
+          "reading_id": "String (Primary Key)",
+          "timestamp": "String (Sort Key, ISO DateTime with milliseconds)",
+          "node_id": "String",
+          "session_id": "String",
+          "sensor_type": "String (RFID, WEIGHT, ULTRASONIC, IR, SERVO)",
+          "sensor_value": "Number",
+          "raw_data": "Map (Complete sensor reading)",
+          "processing_time_ms": "Number",
+          "validation_result": "String (valid | invalid | suspicious)",
+          "fraud_indicators": "List (Array of potential issues)"
+        },
+        "ttl_enabled": true,
+        "ttl_attribute": "expires_at",
+        "data_retention": "30 days (automatic deletion)"
+      },
+  
+      "store-inventory-transactions-prod": {
+        "description": "All inventory changes across nodes (PRIMARY STORAGE)",
+        "primary_key": {
+          "partition_key": "inventory_id",
+          "type": "String"
+        },
+        "global_secondary_indexes": [
+          {
+            "index_name": "product-time-index",
+            "partition_key": "product_id",
+            "sort_key": "timestamp",
+            "purpose": "Track inventory changes by product over time"
+          },
+          {
+            "index_name": "node-inventory-index",
+            "partition_key": "node_id",
+            "sort_key": "timestamp",
+            "purpose": "Track which devices are moving inventory"
+          }
+        ],
+        "attributes": {
+          "inventory_id": "String (Primary Key)",
+          "product_id": "String",
+          "node_id": "String",
+          "node_type": "String",
+          "transaction_type": "String (sale, restock, adjustment, damage, theft)",
+          "quantity_change": "Number (negative for outgoing, positive for incoming)",
+          "old_quantity": "Number",
+          "new_quantity": "Number",
+          "reference_id": "String (session_id, supplier_id, etc.)",
+          "reference_type": "String (session, supplier, manual, system)",
+          "unit_cost": "Number (Decimal)",
+          "timestamp": "String (ISO DateTime)",
+          "created_by": "String (system, user_id, device_id)",
+          "notes": "String"
+        }
+      }
+    },
+  
+    "real_time_access_patterns": {
+      "cart_rfid_scan": {
+        "flow": "Pi → Cloud API → DynamoDB product lookup → Response to Pi",
+        "latency": "< 200ms",
+        "tables": ["store-products-prod", "store-sensor-data-prod"]
+      },
+      "customer_authentication": {
+        "flow": "Pi → Cloud API → DynamoDB customer lookup → Response to Pi", 
+        "latency": "< 150ms",
+        "tables": ["store-customers-prod"]
+      },
+      "door_exit_validation": {
+        "flow": "Pi → Cloud API → DynamoDB session check → Access decision",
+        "latency": "< 100ms",
+        "tables": ["store-sessions-prod", "store-customers-prod"]
+      },
+      "fraud_detection": {
+        "flow": "Pi → Cloud API → Real-time analysis → Fraud alert",
+        "latency": "< 300ms", 
+        "tables": ["store-fraud-events-prod", "store-sensor-data-prod"]
+      }
+    },
+  
+    "security_model": {
+      "data_encryption": {
+        "at_rest": "AWS KMS encryption for all tables",
+        "in_transit": "TLS 1.2+ for all Pi ↔ Cloud communication",
+        "field_level": "Customer PII encrypted with separate keys"
+      },
+      "access_control": {
+        "pi_devices": "Read-only access to specific customer/product data",
+        "iam_policies": "Least privilege - devices can only access their own data",
+        "api_keys": "Rotating API keys per device",
+        "rate_limiting": "Prevent abuse and DoS attacks"
+      },
+      "audit_logging": {
+        "all_api_calls": "CloudTrail logs every Pi request",
+        "data_access": "Track which device accessed what data when",
+        "compliance": "Complete audit trail for security investigations"
+      }
+    },
+  
+    "cost_optimization": {
+      "pricing_model": "On-demand with auto-scaling",
+      "estimated_cost": "$10-50/month for single store",
+      "optimization_strategies": [
+        "Use TTL for sensor data (auto-delete after 30 days)",
+        "Batch writes where possible to reduce costs",
+        "GSI projections to minimize storage",
+        "Reserved capacity for predictable workloads"
+      ]
+    }
+  }
