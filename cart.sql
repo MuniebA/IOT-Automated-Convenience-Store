@@ -58,7 +58,6 @@ CREATE TABLE product_data (
     id INT AUTO_INCREMENT PRIMARY KEY,
     product_name VARCHAR(100) NOT NULL,
     price DECIMAL(10, 2) NOT NULL,
-    is_grocery BOOLEAN DEFAULT FALSE,
     cloud_product_id VARCHAR(50),
     
     INDEX idx_cloud_product_id (cloud_product_id)
