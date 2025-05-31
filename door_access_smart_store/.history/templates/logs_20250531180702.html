@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Convenience Store - Access Logs</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('dashboard') }}">
+                <i class="fas fa-store"></i> Smart Convenience Store
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('dashboard') }}">
+                            <i class="fas fa-tachometer-alt"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('users') }}">
+                            <i class="fas fa-users"></i> Users
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('logs') }}">
+                            <i class="fas fa-clipboard-list"></i> Access Logs
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                        <i class="fas fa-{{ 'exclamation-triangle' if category == 'error' else 'check-circle' if category == 'success' else 'info-circle' }}"></i>
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="row">
+            <!-- Filters and Controls -->
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-filter"></i> Filters & Controls
+                    </div>
+                    <div class="card-body">
+                        <!-- Filter Form -->
+                        <form method="GET" action="{{ url_for('logs') }}">
+                            <div class="mb-3">
+                                <label class="form-label">
+                                    <i class="fas fa-eye"></i> Show Logs
+                                </label>
+                                <select name="filter" class="form-select" onchange="this.form.submit()">
+                                    <option value="all" {{ 'selected' if current_filter == 'all' else '' }}>All Logs</option>
+                                    <option value="granted" {{ 'selected' if current_filter == 'granted' else '' }}>Access Granted</option>
+                                    <option value="denied" {{ 'selected' if current_filter == 'denied' else '' }}>Access Denied</option>
+                                    <option value="today" {{ 'selected' if current_filter == 'today' else '' }}>Today Only</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">
+                                    <i class="fas fa-list"></i> Limit Results
+                                </label>
+                                <select name="limit" class="form-select" onchange="this.form.submit()">
+                                    <option value="50">50 records</option>
+                                    <option value="100" selected>100 records</option>
+                                    <option value="200">200 records</option>
+                                    <option value="500">500 records</option>
+                                </select>
+                            </div>
+                        </form>
+
+                        <hr>
+
+                        <!-- Quick Stats -->
+                        <div class="mb-3">
+                            <h6><i class="fas fa-chart-pie"></i> Quick Stats</h6>
+                            <div class="row text-center">
+                                <div class="col-6">
+                                    <div class="stat-number stat-primary">{{ total_logs }}</div>
+                                    <div class="stat-label">Total</div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="stat-number stat-success">{{ filtered_count }}</div>
+                                    <div class="stat-label">Filtered</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- Export Options -->
+                        <div class="mb-3">
+                            <h6><i class="fas fa-download"></i> Export</h6>
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-outline-primary btn-sm" onclick="exportLogs('csv')">
+                                    <i class="fas fa-file-csv"></i> Export CSV
+                                </button>
+                                <button class="btn btn-outline-success btn-sm" onclick="printLogs()">
+                                    <i class="fas fa-print"></i> Print Logs
+                                </button>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- Auto Refresh -->
+                        <div class="mb-0">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="autoRefresh" checked>
+                                <label class="form-check-label" for="autoRefresh">
+                                    <i class="fas fa-sync-alt"></i> Auto Refresh
+                                </label>
+                            </div>
+                            <small class="text-muted">Updates every 10 seconds</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Status -->
+                <div class="card">
+                    <div class="card-header">
+                        <i class="fas fa-broadcast-tower"></i> Live Status
+                    </div>
+                    <div class="card-body text-center">
+                        <div id="live-status">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2 mb-0">Checking status...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Access Logs Table -->
+            <div class="col-md-9">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>
+                            <i class="fas fa-clipboard-list"></i> Access Logs
+                            {% if current_filter != 'all' %}
+                                <span class="badge bg-info">{{ current_filter|title }}</span>
+                            {% endif %}
+                        </span>
+                        <span>
+                            <span class="badge bg-primary">{{ filtered_count }} of {{ total_logs }}</span>
+                            <button class="btn btn-outline-secondary btn-sm ms-2" onclick="refreshLogs()">
+                                <i class="fas fa-sync" id="refresh-icon"></i>
+                            </button>
+                        </span>
+                    </div>
+                    <div class="card-body p-0">
+                        {% if logs %}
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0" id="logsTable">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th><i class="fas fa-clock"></i> Timestamp</th>
+                                            <th><i class="fas fa-user"></i> User</th>
+                                            <th><i class="fas fa-id-card"></i> UID</th>
+                                            <th><i class="fas fa-door-open"></i> Result</th>
+                                            <th><i class="fas fa-info-circle"></i> Details</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for log in logs %}
+                                            <tr class="log-entry" data-result="{{ log.result }}">
+                                                <td>
+                                                    <div class="timestamp">
+                                                        <strong>{{ log.timestamp.strftime('%H:%M:%S') }}</strong><br>
+                                                        <small class="text-muted">{{ log.timestamp.strftime('%Y-%m-%d') }}</small>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div class="user-info">
+                                                        <strong>{{ log.name }}</strong>
+                                                        {% if log.name == 'Unknown' %}
+                                                            <br><small class="text-muted">Unregistered user</small>
+                                                        {% endif %}
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    {% if log.uid and log.uid != 'N/A' %}
+                                                        <code class="text-primary">{{ log.uid }}</code>
+                                                    {% else %}
+                                                        <span class="text-muted">—</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <span class="badge bg-{{ log.status_class }}">
+                                                        {% if log.result == 'GRANTED' %}
+                                                            <i class="fas fa-check"></i> Granted
+                                                        {% elif log.result == 'DENIED' %}
+                                                            <i class="fas fa-times"></i> Denied
+                                                        {% elif log.result == 'REGISTERED' %}
+                                                            <i class="fas fa-user-plus"></i> Registered
+                                                        {% elif log.result == 'MANUAL_OPEN' %}
+                                                            <i class="fas fa-hand-paper"></i> Manual
+                                                        {% elif log.result == 'NO_MOVEMENT_DETECTED' %}
+                                                            <i class="fas fa-exclamation-triangle"></i> No Movement
+                                                        {% else %}
+                                                            {{ log.result }}
+                                                        {% endif %}
+                                                    </span>
+                                                </td>
+                                                <td>
+                                                    {% if log.result == 'GRANTED' %}
+                                                        <small class="text-success">
+                                                            <i class="fas fa-door-open"></i> Access allowed
+                                                        </small>
+                                                    {% elif log.result == 'DENIED' %}
+                                                        <small class="text-danger">
+                                                            <i class="fas fa-shield-alt"></i> Access denied
+                                                        </small>
+                                                    {% elif log.result == 'REGISTERED' %}
+                                                        <small class="text-info">
+                                                            <i class="fas fa-id-card"></i> New card registered
+                                                        </small>
+                                                    {% elif log.result == 'MANUAL_OPEN' %}
+                                                        <small class="text-warning">
+                                                            <i class="fas fa-user-shield"></i> Manual override
+                                                        </small>
+                                                    {% elif log.result == 'NO_MOVEMENT_DETECTED' %}
+                                                        <small class="text-warning">
+                                                            <i class="fas fa-exclamation-triangle"></i> Security alert
+                                                        </small>
+                                                    {% else %}
+                                                        <small class="text-muted">{{ log.result|replace('_', ' ')|title }}</small>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <div class="text-center py-5">
+                                <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
+                                <h5 class="text-muted">No Access Logs Found</h5>
+                                <p class="text-muted">
+                                    {% if current_filter != 'all' %}
+                                        No logs match the current filter. <a href="{{ url_for('logs') }}">View all logs</a>
+                                    {% else %}
+                                        No access attempts have been recorded yet.
+                                    {% endif %}
+                                </p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let refreshInterval;
+        
+        // Auto-refresh functionality
+        function startAutoRefresh() {
+            if (document.getElementById('autoRefresh').checked) {
+                refreshInterval = setInterval(refreshLogs, 10000); // 10 seconds
+            }
+        }
+        
+        function stopAutoRefresh() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+            }
+        }
+        
+        // Refresh logs
+        function refreshLogs() {
+            const icon = document.getElementById('refresh-icon');
+            icon.classList.add('fa-spin');
+            
+            // Reload page to get updated logs
+            setTimeout(() => {
+                window.location.reload();
+            }, 500);
+        }
+        
+        // Update live status
+        function updateLiveStatus() {
+            fetch('/api/status')
+                .then(response => response.json())
+                .then(data => {
+                    const statusDiv = document.getElementById('live-status');
+                    const statusClass = data.door_state === 'READY' ? 'success' : 
+                                       data.door_state === 'OPEN' ? 'warning' : 
+                                       data.door_state === 'CLOSED' ? 'primary' : 'danger';
+                    
+                    statusDiv.innerHTML = `
+                        <div class="status-indicator status-${data.door_state.toLowerCase()}"></div>
+                        <h6 class="text-${statusClass} mb-1">${data.door_state}</h6>
+                        <small class="text-muted">
+                            Last update: ${new Date().toLocaleTimeString()}
+                        </small>
+                    `;
+                })
+                .catch(error => {
+                    document.getElementById('live-status').innerHTML = `
+                        <div class="text-danger">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <p class="mb-0">Connection Error</p>
+                        </div>
+                    `;
+                });
+        }
+        
+        // Export functionality
+        function exportLogs(format) {
+            if (format === 'csv') {
+                const table = document.getElementById('logsTable');
+                let csv = [];
+                
+                // Headers
+                csv.push(['Timestamp', 'User', 'UID', 'Result', 'Details'].join(','));
+                
+                // Data rows
+                const rows = table.querySelectorAll('tbody tr');
+                rows.forEach(row => {
+                    const cells = row.querySelectorAll('td');
+                    const rowData = [
+                        cells[0].textContent.trim().replace(/\n/g, ' '),
+                        cells[1].textContent.trim(),
+                        cells[2].textContent.trim(),
+                        cells[3].textContent.trim(),
+                        cells[4].textContent.trim()
+                    ];
+                    csv.push(rowData.join(','));
+                });
+                
+                // Download
+                const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `access_logs_${new Date().toISOString().split('T')[0]}.csv`;
+                a.click();
+                window.URL.revokeObjectURL(url);
+                
+                showNotification('Access logs exported successfully!', 'success');
+            }
+        }
+        
+        // Print functionality
+        function printLogs() {
+            window.print();
+        }
+        
+        // Notification system
+        function showNotification(message, type) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
+            alertDiv.innerHTML = `
+                <i class="fas fa-${type === 'error' ? 'exclamation-triangle' : 'check-circle'}"></i>
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            document.querySelector('.container-fluid').insertBefore(alertDiv, document.querySelector('.row'));
+            
+            // Auto-dismiss after 3 seconds
+            setTimeout(() => {
+                if (alertDiv.parentNode) {
+                    alertDiv.remove();
+                }
+            }, 3000);
+        }
+        
+        // Auto-refresh toggle
+        document.getElementById('autoRefresh').addEventListener('change', function() {
+            if (this.checked) {
+                startAutoRefresh();
+                showNotification('Auto-refresh enabled', 'success');
+            } else {
+                stopAutoRefresh();
+                showNotification('Auto-refresh disabled', 'warning');
+            }
+        });
+        
+        // Search functionality
+        function searchLogs(query) {
+            const rows = document.querySelectorAll('#logsTable tbody tr');
+            const searchTerm = query.toLowerCase();
+            
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                if (text.includes(searchTerm)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            // F5 or Ctrl+R for refresh
+            if (e.key === 'F5' || (e.ctrlKey && e.key === 'r')) {
+                e.preventDefault();
+                refreshLogs();
+            }
+            
+            // Ctrl+P for print
+            if (e.ctrlKey && e.key === 'p') {
+                e.preventDefault();
+                printLogs();
+            }
+        });
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            // Start auto-refresh if enabled
+            if (document.getElementById('autoRefresh').checked) {
+                startAutoRefresh();
+            }
+            
+            // Update live status immediately and then every 5 seconds
+            updateLiveStatus();
+            setInterval(updateLiveStatus, 5000);
+            
+            // Highlight new entries
+            const rows = document.querySelectorAll('.log-entry');
+            rows.forEach((row, index) => {
+                if (index < 3) { // Highlight first 3 entries as "recent"
+                    row.style.backgroundColor = '#f8f9fa';
+                }
+            });
+        });
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            stopAutoRefresh();
+        });
+    </script>
+</body>
+</html>
