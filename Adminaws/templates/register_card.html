@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Register Card - IoT Store Admin{% endblock %}
+{% block page_title %}Register RFID Card{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title mb-4">
+                    <i class="fas fa-id-card me-2"></i>
+                    Register New Student/User Card
+                </h5>
+                
+                <!-- RFID Scanner Section -->
+                <div class="alert alert-info" role="alert">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Use the door RFID reader to scan a new card, or simulate a scan for testing.
+                </div>
+                
+                <div class="text-center mb-4">
+                    <button type="button" class="btn btn-primary btn-lg" id="simulateRfidScan">
+                        <i class="fas fa-wifi me-2"></i>
+                        📡 Simulate RFID Scan
+                    </button>
+                </div>
+                
+                <!-- RFID UID Display -->
+                <div class="alert alert-success" id="rfidResult" style="display: none;">
+                    <strong>Card Scanned!</strong><br>
+                    RFID UID: <code id="rfidUidDisplay"></code>
+                </div>
+                
+                <!-- Registration Form -->
+                <form id="registerCardForm">
+                    <input type="hidden" id="rfidUid" name="rfid_uid" required>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="name" class="form-label">Full Name *</label>
+                            <input type="text" class="form-control" id="name" name="name" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="type" class="form-label">User Type *</label>
+                            <select class="form-select" id="type" name="type" required>
+                                <option value="">Select Type</option>
+                                <option value="REGULAR">Regular Customer</option>
+                                <option value="VIP">VIP Customer</option>
+                                <option value="EMPLOYEE">Employee</option>
+                                <option value="ADMIN">Administrator</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="email" class="form-label">Email Address *</label>
+                            <input type="email" class="form-control" id="email" name="email" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="phone" class="form-label">Phone Number</label>
+                            <input type="tel" class="form-control" id="phone" name="phone">
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <button type="button" class="btn btn-secondary me-md-2">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-save"></i> Register Card
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Instructions Card -->
+        <div class="card mt-4">
+            <div class="card-body">
+                <h6 class="card-title">
+                    <i class="fas fa-question-circle me-2"></i>
+                    How to Register Cards
+                </h6>
+                <ol class="mb-0">
+                    <li>Click "Simulate RFID Scan" to test, or use the physical door reader</li>
+                    <li>Fill in the user information form</li>
+                    <li>Click "Register Card" to save the new user</li>
+                    <li>The card will be immediately active for store access</li>
+                </ol>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

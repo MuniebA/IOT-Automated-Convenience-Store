@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics - IoT Store Admin{% endblock %}
+{% block page_title %}Analytics & Reports{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group" role="group">
+    <button type="button" class="btn btn-outline-primary">
+        <i class="fas fa-calendar"></i> Date Range
+    </button>
+    <button type="button" class="btn btn-outline-success">
+        <i class="fas fa-file-excel"></i> Export
+    </button>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Summary Stats -->
+<div class="row mb-4">
+    <div class="col-md-4 mb-3">
+        <div class="stats-card">
+            <div class="icon bg-success text-white">
+                <i class="fas fa-chart-line"></i>
+            </div>
+            <div class="value">${{ "%.2f"|format(analytics.total_sales_today) }}</div>
+            <div class="label">Total Revenue</div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="stats-card">
+            <div class="icon bg-info text-white">
+                <i class="fas fa-shopping-bag"></i>
+            </div>
+            <div class="value">{{ analytics.fraud_events|sum(attribute='count') }}</div>
+            <div class="label">Total Transactions</div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="stats-card">
+            <div class="icon bg-warning text-white">
+                <i class="fas fa-shield-alt"></i>
+            </div>
+            <div class="value">{{ analytics.fraud_alerts }}</div>
+            <div class="label">Security Events</div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="chart-container">
+            <h5 class="mb-3">Sales Performance (7 Days)</h5>
+            <canvas id="analyticsChart" height="80"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Fraud Analysis -->
+<div class="row">
+    <div class="col-md-6">
+        <div class="chart-container">
+            <h5 class="mb-3">Fraud Event Types</h5>
+            <canvas id="fraudAnalyticsChart"></canvas>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="chart-container">
+            <h5 class="mb-3">Security Metrics</h5>
+            <div class="row">
+                {% for event in analytics.fraud_events %}
+                <div class="col-6 mb-3">
+                    <div class="text-center">
+                        <h4 class="text-primary">{{ event.count }}</h4>
+                        <small class="text-muted">{{ event.type.replace('_', ' ').title() }}</small>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const salesData = {{ analytics.daily_sales|tojson }};
+    const fraudData = {{ analytics.fraud_events|tojson }};
+    
+    // Sales Analytics Chart
+    const analyticsCtx = document.getElementById('analyticsChart');
+    if (analyticsCtx) {
+        new Chart(analyticsCtx, {
+            type: 'bar',
+            data: {
+                labels: salesData.map(item => new Date(item.date).toLocaleDateString()),
+                datasets: [{
+                    label: 'Daily Sales',
+                    data: salesData.map(item => item.sales),
+                    backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                    borderColor: '#3b82f6',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return '$' + value.toLocaleString();
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    // Fraud Analytics Chart
+    const fraudAnalyticsCtx = document.getElementById('fraudAnalyticsChart');
+    if (fraudAnalyticsCtx) {
+        new Chart(fraudAnalyticsCtx, {
+            type: 'pie',
+            data: {
+                labels: fraudData.map(item => item.type.replace('_', ' ').toUpperCase()),
+                datasets: [{
+                    data: fraudData.map(item => item.count),
+                    backgroundColor: [
+                        '#ef4444',
+                        '#f59e0b', 
+                        '#10b981',
+                        '#3b82f6'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
