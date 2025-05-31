@@ -1,6 +1,6 @@
 {
-    "_description": "AWS DynamoDB Schema - PRIMARY STORAGE for IoT Convenience Store",
-    "_purpose": "ALL persistent data stored here - Pis only access, never store permanently",
+    "_description": "Enhanced AWS DynamoDB Schema - PRIMARY STORAGE for IoT Convenience Store",
+    "_purpose": "ALL persistent data stored here - Includes user's existing tables",
     "_security": "Single source of truth for all customer, product, and transaction data",
     
     "tables": {
@@ -35,12 +35,7 @@
           "checkout_required": "Boolean (for door exit control)",
           "created_at": "String (ISO DateTime)",
           "updated_at": "String (ISO DateTime)"
-        },
-        "access_patterns": [
-          "Pi scans RFID → Real-time lookup by rfid_card_uid",
-          "Cart needs customer info → Query by customer_id", 
-          "Door checks exit permission → Get checkout_required status"
-        ]
+        }
       },
   
       "store-products-prod": {
@@ -71,7 +66,6 @@
           "current_price": "Number (Decimal)",
           "vip_price": "Number (Decimal)",
           "weight_per_unit": "Number (grams)",
-          "is_grocery": "Boolean",
           "barcode": "String",
           "supplier": "String",
           "inventory_level": "Number",
@@ -83,12 +77,7 @@
           "is_active": "Boolean",
           "created_at": "String (ISO DateTime)",
           "updated_at": "String (ISO DateTime)"
-        },
-        "access_patterns": [
-          "Cart scans product RFID → Real-time lookup by product_rfid",
-          "Shelf displays products → Query by category + is_premium",
-          "Inventory management → Query by inventory_level < reorder_threshold"
-        ]
+        }
       },
   
       "store-sessions-prod": {
@@ -133,16 +122,11 @@
           "items": "List (Array of cart items)",
           "sensor_data_summary": "Map (total weight, item count validation)",
           "processed_at": "String (ISO DateTime)"
-        },
-        "access_patterns": [
-          "Cart starts session → Create new session record",
-          "Door checks exit → Query active session by customer_id",
-          "Real-time updates → Update session as items scanned"
-        ]
+        }
       },
   
       "store-transactions-prod": {
-        "description": "Individual item transactions and payments (PRIMARY STORAGE)",
+        "description": "Individual item transactions and payments (FROM USER'S EXISTING TABLE)",
         "primary_key": {
           "partition_key": "transaction_id",
           "sort_key": "session_id",
@@ -156,42 +140,68 @@
             "purpose": "Get all transactions for a session in chronological order"
           },
           {
-            "index_name": "product-sales-index",
-            "partition_key": "product_id", 
+            "index_name": "user-time-index",
+            "partition_key": "user_id",
             "sort_key": "timestamp",
-            "purpose": "Analytics on product sales performance"
+            "purpose": "Get all transactions for a user"
           }
         ],
         "attributes": {
           "transaction_id": "String (Primary Key)",
-          "session_id": "String (Sort Key)",
-          "customer_id": "String",
-          "product_id": "String",
-          "product_rfid": "String",
+          "session_id": "String (Sort Key, nullable)",
+          "user_id": "String (from your existing table)",
+          "total_amount": "Number (Decimal)",
+          "items": "String (JSON array as string for compatibility)",
           "timestamp": "String (ISO DateTime)",
-          "quantity": "Number",
-          "unit_price": "Number (Decimal)",
-          "discount_applied": "Number (Decimal)",
-          "final_price": "Number (Decimal)",
-          "weight_detected": "Number (grams)",
-          "weight_expected": "Number (grams)",
-          "validation_status": "String (valid | fraud | manual)",
-          "sensor_data": "Map (weight, ultrasonic, etc.)",
-          "node_id": "String",
-          "store_id": "String"
+          "store_id": "String",
+          "payment_method": "String",
+          "transaction_status": "String (completed | pending | cancelled)"
         },
-        "access_patterns": [
-          "Cart adds item → Create transaction record immediately",
-          "Fraud detection → Query transactions with validation issues",
-          "Receipt generation → Get all transactions for session"
-        ]
+        "migration_notes": "Enhanced version of user's existing transactions table"
+      },
+  
+      "store-scanned-items-prod": {
+        "description": "Real-time item scans from smart carts (FROM USER'S EXISTING TABLE)",
+        "primary_key": {
+          "partition_key": "scan_id",
+          "sort_key": "timestamp",
+          "type": "String"
+        },
+        "global_secondary_indexes": [
+          {
+            "index_name": "tag-time-index",
+            "partition_key": "tag_id",
+            "sort_key": "timestamp",
+            "purpose": "Track scanning history for specific RFID tags"
+          },
+          {
+            "index_name": "product-scan-index",
+            "partition_key": "product_id",
+            "sort_key": "timestamp",
+            "purpose": "Analyze product scanning patterns"
+          }
+        ],
+        "attributes": {
+          "scan_id": "String (Primary Key - generated)",
+          "tag_id": "String (from your existing table)",
+          "timestamp": "String (Sort Key, ISO DateTime)",
+          "product_id": "String (from your existing table)",
+          "weight": "Number (Decimal, from your existing table)",
+          "is_validated": "Boolean (from your existing table)",
+          "session_id": "String",
+          "cart_node_id": "String",
+          "store_id": "String",
+          "validation_status": "String (valid | fraud | pending)",
+          "sensor_readings": "Map (weight, ultrasonic, etc.)"
+        },
+        "migration_notes": "Enhanced version of user's existing scanned_items table"
       },
   
       "store-fraud-events-prod": {
-        "description": "Fraud detection events from all nodes (PRIMARY STORAGE)",
+        "description": "Fraud detection events from all nodes (FROM USER'S EXISTING TABLE)",
         "primary_key": {
           "partition_key": "event_id",
-          "sort_key": "session_id",
+          "sort_key": "timestamp",
           "type": "String"
         },
         "global_secondary_indexes": [
@@ -202,37 +212,38 @@
             "purpose": "Get all fraud events for a session"
           },
           {
-            "index_name": "severity-time-index",
-            "partition_key": "severity",
-            "sort_key": "timestamp", 
-            "purpose": "Monitor high-severity fraud events across all stores"
+            "index_name": "event-type-index",
+            "partition_key": "event_type",
+            "sort_key": "timestamp",
+            "purpose": "Monitor specific fraud types across all stores"
           }
         ],
         "attributes": {
-          "event_id": "String (Primary Key)",
-          "session_id": "String (Sort Key)",
-          "timestamp": "String (ISO DateTime)",
-          "fraud_type": "String (unscanned_item, weight_mismatch, unauthorized_access, etc.)",
-          "severity": "String (low | medium | high | critical)",
-          "details": "String",
+          "event_id": "String (Primary Key - generated)",
+          "timestamp": "String (Sort Key, ISO DateTime)",
+          "event_type": "String (no_placement | multiple_items | unscanned_item | weight_mismatch)",
+          "tag_id": "String (from your existing table)",
+          "details": "String (from your existing table)",
+          "session_id": "String (from your existing table)",
+          "synced_to_cloud": "Boolean (from your existing table)",
           "node_type": "String (smart-cart, door-access, smart-shelf)",
           "node_id": "String",
           "customer_id": "String",
+          "severity": "String (low | medium | high | critical)",
           "sensor_data": "Map (Object with all sensor readings)",
-          "evidence": "Map (images, timestamps, measurements)",
           "auto_resolved": "Boolean",
           "staff_notified": "Boolean",
-          "resolution_notes": "String",
-          "false_positive": "Boolean"
+          "resolution_notes": "String"
         },
         "fraud_types": [
-          "unscanned_item", "weight_mismatch", "multiple_items", "missing_item",
+          "no_placement", "multiple_items", "unscanned_item", "weight_mismatch",
           "unauthorized_access", "shelf_tampering", "rfid_clone", "sensor_tampering"
-        ]
+        ],
+        "migration_notes": "Enhanced version of user's existing fraud_logs table"
       },
   
       "store-access-logs-prod": {
-        "description": "Door access events and security logs (PRIMARY STORAGE)",
+        "description": "Door access events and security logs (SINGLE DOOR SYSTEM)",
         "primary_key": {
           "partition_key": "log_id",
           "sort_key": "timestamp",
@@ -255,7 +266,7 @@
         "attributes": {
           "log_id": "String (Primary Key)",
           "timestamp": "String (Sort Key, ISO DateTime)",
-          "door_node_id": "String",
+          "door_node_id": "String (single door system)",
           "customer_id": "String",
           "rfid_card_uid": "String",
           "event_type": "String (entry_attempt, entry_success, entry_denied, exit_success, etc.)",
@@ -263,17 +274,13 @@
           "access_granted": "Boolean",
           "deny_reason": "String",
           "servo_position": "Number (0=locked, 90=unlocked)",
-          "ir_sensor_status": "Boolean",
+          "ir_sensor_triggered": "Boolean (single sensor)",
           "door_open_duration": "Number (seconds)",
           "offline_mode": "Boolean",
           "emergency_access": "Boolean",
           "store_id": "String"
         },
-        "event_types": [
-          "entry_attempt", "entry_success", "entry_denied",
-          "exit_attempt", "exit_success", "exit_denied", 
-          "emergency_unlock", "maintenance_access"
-        ]
+        "hardware_notes": "Single door system: 1 servo, 1 IR sensor, 1 LCD, 1 buzzer, 1 RFID reader, 2 LEDs"
       },
   
       "store-shelf-displays-prod": {
@@ -444,7 +451,7 @@
       "cart_rfid_scan": {
         "flow": "Pi → Cloud API → DynamoDB product lookup → Response to Pi",
         "latency": "< 200ms",
-        "tables": ["store-products-prod", "store-sensor-data-prod"]
+        "tables": ["store-products-prod", "store-scanned-items-prod"]
       },
       "customer_authentication": {
         "flow": "Pi → Cloud API → DynamoDB customer lookup → Response to Pi", 
@@ -463,6 +470,63 @@
       }
     },
   
+    "migration_from_existing_tables": {
+      "fraud_logs_migration": {
+        "source_table": "Local MySQL fraud_logs",
+        "target_table": "store-fraud-events-prod",
+        "mapping": {
+          "id": "Use as reference for event_id generation",
+          "event_type": "Map to enhanced event_type enum",
+          "tag_id": "Direct mapping",
+          "timestamp": "Convert to ISO DateTime string",
+          "details": "Direct mapping",
+          "session_id": "Link to store-sessions-prod",
+          "synced_to_cloud": "Use for migration status tracking"
+        }
+      },
+      "scanned_items_migration": {
+        "source_table": "Local MySQL scanned_items",
+        "target_table": "store-scanned-items-prod",
+        "mapping": {
+          "id": "Use as reference for scan_id generation",
+          "tag_id": "Direct mapping",
+          "timestamp": "Convert to ISO DateTime string",
+          "product_id": "Link to store-products-prod",
+          "weight": "Direct mapping",
+          "is_validated": "Direct mapping"
+        }
+      },
+      "transactions_migration": {
+        "source_table": "Local MySQL transactions",
+        "target_table": "store-transactions-prod",
+        "mapping": {
+          "id": "Use as reference for transaction_id generation",
+          "user_id": "Direct mapping",
+          "total_amount": "Direct mapping",
+          "items": "Keep as JSON string for compatibility",
+          "timestamp": "Convert to ISO DateTime string",
+          "session_id": "Link to store-sessions-prod"
+        }
+      }
+    },
+  
+    "hardware_specifications": {
+      "smart_cart": {
+        "components": ["Raspberry Pi 4", "Arduino Uno", "RC522 RFID", "HX711 Load Cell", "HC-SR04 Ultrasonic", "7inch Touchscreen", "RGB LEDs", "Buzzer"],
+        "communication": "Wi-Fi to Cloud API"
+      },
+      "door_access": {
+        "components": ["Raspberry Pi 4", "Arduino Uno", "RC522 RFID", "SG90 Servo", "Single IR Sensor", "16x2 LCD", "2 LEDs (Red/Green)", "Passive Buzzer"],
+        "communication": "Wi-Fi to Cloud API",
+        "notes": "Single door system for both entry and exit"
+      },
+      "smart_shelf": {
+        "components": ["ESP32", "RC522 RFID", "SG90 Servo", "16x2 LCD", "Standard LEDs", "IR Sensors"],
+        "communication": "Direct ESP32 to Cloud API",
+        "notes": "No local database - pure cloud communication"
+      }
+    },
+  
     "security_model": {
       "data_encryption": {
         "at_rest": "AWS KMS encryption for all tables",
@@ -474,22 +538,6 @@
         "iam_policies": "Least privilege - devices can only access their own data",
         "api_keys": "Rotating API keys per device",
         "rate_limiting": "Prevent abuse and DoS attacks"
-      },
-      "audit_logging": {
-        "all_api_calls": "CloudTrail logs every Pi request",
-        "data_access": "Track which device accessed what data when",
-        "compliance": "Complete audit trail for security investigations"
       }
-    },
-  
-    "cost_optimization": {
-      "pricing_model": "On-demand with auto-scaling",
-      "estimated_cost": "$10-50/month for single store",
-      "optimization_strategies": [
-        "Use TTL for sensor data (auto-delete after 30 days)",
-        "Batch writes where possible to reduce costs",
-        "GSI projections to minimize storage",
-        "Reserved capacity for predictable workloads"
-      ]
     }
   }

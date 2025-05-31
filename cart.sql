@@ -19,7 +19,7 @@ CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 USE smart_cart_temp_cache;
 
 -- =====================================================
--- SECTION 1: LEGACY COMPATIBILITY TABLES (MINIMAL)
+-- SECTION 1: LEGACY COMPATIBILITY TABLES (KEEP EXISTING)
 -- =====================================================
 -- Keep for backward compatibility with existing cart code
 
@@ -63,6 +63,60 @@ CREATE TABLE product_data (
     INDEX idx_cloud_product_id (cloud_product_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
 COMMENT 'Legacy compatibility - Real data in cloud';
+
+-- Scanned items table (YOUR EXISTING TABLE)
+CREATE TABLE scanned_items (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    tag_id VARCHAR(50) NOT NULL,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    product_id INT DEFAULT NULL,
+    weight DECIMAL(10,2) DEFAULT NULL,
+    is_validated TINYINT(1) DEFAULT 0,
+    cloud_transaction_id VARCHAR(50), -- Link to cloud record
+    
+    FOREIGN KEY (product_id) REFERENCES product_data(id),
+    INDEX idx_tag_id (tag_id),
+    INDEX idx_timestamp (timestamp),
+    INDEX idx_cloud_transaction_id (cloud_transaction_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+COMMENT 'Your existing scanned items - enhanced with cloud sync';
+
+-- Transactions table (YOUR EXISTING TABLE - MariaDB compatible)
+CREATE TABLE transactions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id VARCHAR(50) DEFAULT NULL,
+    total_amount DECIMAL(10,2) DEFAULT NULL,
+    items TEXT DEFAULT NULL, -- Changed from JSON to TEXT for MariaDB compatibility
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    session_id INT DEFAULT NULL,
+    cloud_transaction_id VARCHAR(50), -- Link to cloud record
+    
+    FOREIGN KEY (session_id) REFERENCES shopping_sessions(id),
+    INDEX idx_user_id (user_id),
+    INDEX idx_session_id (session_id),
+    INDEX idx_timestamp (timestamp),
+    INDEX idx_cloud_transaction_id (cloud_transaction_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+COMMENT 'Your existing transactions - enhanced with cloud sync';
+
+-- Fraud logs table (YOUR EXISTING TABLE - enhanced)
+CREATE TABLE fraud_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    event_type ENUM('no_placement','multiple_items','unscanned_item','weight_mismatch') NOT NULL,
+    tag_id VARCHAR(50) DEFAULT NULL,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    details TEXT DEFAULT NULL,
+    session_id INT DEFAULT NULL,
+    synced_to_cloud TINYINT(1) DEFAULT 0,
+    cloud_fraud_id VARCHAR(50), -- Link to cloud record
+    
+    FOREIGN KEY (session_id) REFERENCES shopping_sessions(id),
+    INDEX idx_event_type (event_type),
+    INDEX idx_session_id (session_id),
+    INDEX idx_synced_to_cloud (synced_to_cloud),
+    INDEX idx_cloud_fraud_id (cloud_fraud_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+COMMENT 'Your existing fraud logs - enhanced with cloud sync';
 
 -- =====================================================
 -- SECTION 2: TEMPORARY CACHE TABLES (ESSENTIAL ONLY)

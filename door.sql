@@ -67,13 +67,13 @@ CREATE TABLE temp_rfid_cache (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
 COMMENT 'Ultra-short RFID cache for performance';
 
--- Access events (synced to cloud quickly)
+-- Access events (synced to cloud quickly - SINGLE DOOR SYSTEM)
 CREATE TABLE temp_access_events (
     event_id INT AUTO_INCREMENT PRIMARY KEY,
     door_identifier VARCHAR(20) NOT NULL DEFAULT 'door-001',
     rfid_card_uid VARCHAR(32) NOT NULL,
     
-    -- Event details
+    -- Event details (SINGLE DOOR - handles both entry and exit)
     event_type ENUM('ENTRY_ATTEMPT', 'ENTRY_SUCCESS', 'ENTRY_DENIED',
                    'EXIT_ATTEMPT', 'EXIT_SUCCESS', 'EXIT_DENIED') NOT NULL,
     access_granted BOOLEAN DEFAULT FALSE,
@@ -85,9 +85,8 @@ CREATE TABLE temp_access_events (
     servo_position_after INT DEFAULT 0,
     door_open_duration INT DEFAULT 0, -- seconds
     
-    -- Safety sensors
-    ir_sensor_1_triggered BOOLEAN DEFAULT FALSE,
-    ir_sensor_2_triggered BOOLEAN DEFAULT FALSE,
+    -- Single safety sensor
+    ir_sensor_triggered BOOLEAN DEFAULT FALSE,
     safety_override BOOLEAN DEFAULT FALSE,
     
     -- System context
@@ -106,31 +105,33 @@ CREATE TABLE temp_access_events (
     INDEX idx_expires_at (expires_at),
     INDEX idx_event_type (event_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
-COMMENT 'Temporary access events - synced to cloud quickly';
+COMMENT 'Temporary access events - single door system';
 
--- Door hardware status (current state only)
+-- Door hardware status (current state only - SINGLE DOOR SYSTEM)
 CREATE TABLE temp_door_status (
     door_identifier VARCHAR(20) PRIMARY KEY DEFAULT 'door-001',
     
-    -- Physical hardware state
+    -- Physical hardware state (SINGLE DOOR)
     servo_current_position INT DEFAULT 0, -- 0=locked, 90=unlocked
     servo_target_position INT DEFAULT 0,
     is_locked BOOLEAN DEFAULT TRUE,
     auto_lock_timer INT DEFAULT 0, -- seconds until auto-lock
     
-    -- Safety systems
-    ir_sensor_1_active BOOLEAN DEFAULT FALSE, -- Entry beam
-    ir_sensor_2_active BOOLEAN DEFAULT FALSE, -- Exit beam
+    -- Safety system (SINGLE IR SENSOR)
+    ir_sensor_active BOOLEAN DEFAULT FALSE, -- Single beam sensor for safety
+    safety_beam_broken BOOLEAN DEFAULT FALSE,
     safety_lock_engaged BOOLEAN DEFAULT FALSE,
     door_override_active BOOLEAN DEFAULT FALSE,
     
-    -- Hardware health
+    -- Hardware health (SINGLE DOOR COMPONENTS)
     arduino_connected BOOLEAN DEFAULT FALSE,
     servo_responsive BOOLEAN DEFAULT TRUE,
-    ir_sensors_functional BOOLEAN DEFAULT TRUE,
+    ir_sensor_functional BOOLEAN DEFAULT TRUE,
     lcd_functional BOOLEAN DEFAULT TRUE,
     buzzer_functional BOOLEAN DEFAULT TRUE,
-    led_functional BOOLEAN DEFAULT TRUE,
+    led_red_functional BOOLEAN DEFAULT TRUE,
+    led_green_functional BOOLEAN DEFAULT TRUE,
+    rfid_reader_functional BOOLEAN DEFAULT TRUE,
     
     -- Network status
     wifi_connected BOOLEAN DEFAULT FALSE,
@@ -138,8 +139,9 @@ CREATE TABLE temp_door_status (
     last_cloud_ping TIMESTAMP,
     
     -- Daily counters (reset at midnight)
-    entries_today INT DEFAULT 0,
-    exits_today INT DEFAULT 0,
+    access_attempts_today INT DEFAULT 0,
+    successful_entries_today INT DEFAULT 0,
+    successful_exits_today INT DEFAULT 0,
     denied_attempts_today INT DEFAULT 0,
     
     -- Status metadata
@@ -150,9 +152,9 @@ CREATE TABLE temp_door_status (
     
     INDEX idx_is_locked (is_locked)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
-COMMENT 'Current door operational status';
+COMMENT 'Current door operational status - single door system';
 
--- Safety events (temporary monitoring)
+-- Safety events (temporary monitoring - SINGLE IR SENSOR)
 CREATE TABLE temp_safety_events (
     event_id INT AUTO_INCREMENT PRIMARY KEY,
     door_identifier VARCHAR(20) NOT NULL DEFAULT 'door-001',
@@ -160,9 +162,8 @@ CREATE TABLE temp_safety_events (
     event_type ENUM('BEAM_BROKEN', 'BEAM_RESTORED', 'SENSOR_MALFUNCTION',
                    'SAFETY_OVERRIDE', 'EMERGENCY_STOP') NOT NULL,
     
-    -- Sensor readings (simplified)
-    ir_sensor_1_reading BOOLEAN DEFAULT FALSE,
-    ir_sensor_2_reading BOOLEAN DEFAULT FALSE,
+    -- Single sensor readings
+    ir_sensor_reading BOOLEAN DEFAULT FALSE,
     beam_break_duration_ms INT DEFAULT 0,
     
     -- Response actions
@@ -185,7 +186,7 @@ CREATE TABLE temp_safety_events (
     INDEX idx_resolved (resolved),
     INDEX idx_expires_at (expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
-COMMENT 'Temporary safety events';
+COMMENT 'Temporary safety events - single IR sensor system';
 
 -- Emergency events (critical - immediate cloud sync)
 CREATE TABLE temp_emergency_events (
@@ -239,9 +240,16 @@ INSERT INTO temp_door_config (config_key, config_value, description) VALUES
 ('api_timeout_ms', '3000', 'API call timeout for access control'),
 ('rfid_cache_duration_minutes', '2', 'How long to cache RFID verification'),
 ('auto_lock_delay_seconds', '10', 'Delay before auto-lock after access'),
-('ir_sensor_debounce_ms', '500', 'IR sensor debounce time'),
+('ir_sensor_debounce_ms', '500', 'Single IR sensor debounce time'),
 ('emergency_unlock_duration_minutes', '15', 'How long emergency unlock lasts'),
-('max_denied_attempts_per_hour', '10', 'Security threshold for denied attempts');
+('max_denied_attempts_per_hour', '10', 'Security threshold for denied attempts'),
+('servo_unlock_angle', '90', 'Servo angle for unlocked position'),
+('servo_lock_angle', '0', 'Servo angle for locked position'),
+('led_success_duration_ms', '2000', 'Green LED duration for successful access'),
+('led_error_duration_ms', '3000', 'Red LED duration for access denied'),
+('buzzer_success_beeps', '2', 'Number of beeps for successful access'),
+('buzzer_error_beeps', '3', 'Number of beeps for access denied'),
+('lcd_message_duration_seconds', '5', 'How long to show messages on LCD');
 
 -- =====================================================
 -- SECTION 4: AUTOMATIC CLEANUP SYSTEM
@@ -269,11 +277,12 @@ BEGIN
     DELETE FROM temp_emergency_events 
     WHERE expires_at < NOW() AND cloud_synced = TRUE;
     
-    -- Reset daily counters at midnight
+    -- Reset daily counters at midnight (SINGLE DOOR SYSTEM)
     IF TIME(NOW()) BETWEEN '00:00:00' AND '00:02:00' THEN
         UPDATE temp_door_status SET 
-            entries_today = 0,
-            exits_today = 0,
+            access_attempts_today = 0,
+            successful_entries_today = 0,
+            successful_exits_today = 0,
             denied_attempts_today = 0;
     END IF;
     
