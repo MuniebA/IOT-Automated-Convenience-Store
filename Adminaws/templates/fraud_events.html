@@ -1,0 +1,350 @@
+{% extends "base.html" %}
+
+{% block title %}Fraud Events - IoT Store Admin{% endblock %}
+{% block page_title %}Fraud Events & Security{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group" role="group">
+    <button type="button" class="btn btn-outline-primary">
+        <i class="fas fa-filter"></i> Filter Events
+    </button>
+    <button type="button" class="btn btn-outline-warning">
+        <i class="fas fa-download"></i> Export Report
+    </button>
+    <button type="button" class="btn btn-outline-danger">
+        <i class="fas fa-bell"></i> Alert Settings
+    </button>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3 mb-3">
+        <div class="stats-card">
+            <div class="icon bg-danger text-white">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <div class="value">{{ events|length }}</div>
+            <div class="label">Total Events Today</div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="stats-card">
+            <div class="icon bg-warning text-white">
+                <i class="fas fa-shield-alt"></i>
+            </div>
+            <div class="value">{{ events|selectattr("severity", "equalto", "high")|list|length }}</div>
+            <div class="label">High Severity</div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="stats-card">
+            <div class="icon bg-success text-white">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <div class="value">{{ events|selectattr("auto_resolved", "equalto", true)|list|length }}</div>
+            <div class="label">Auto Resolved</div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="stats-card">
+            <div class="icon bg-info text-white">
+                <i class="fas fa-eye"></i>
+            </div>
+            <div class="value">{{ events|selectattr("auto_resolved", "equalto", false)|list|length }}</div>
+            <div class="label">Needs Review</div>
+        </div>
+    </div>
+</div>
+
+<!-- Fraud Events Overview Chart -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="chart-container">
+            <h5 class="mb-3">Fraud Events Timeline (Last 24 Hours)</h5>
+            <canvas id="fraudTimelineChart" height="100"></canvas>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="chart-container">
+            <h5 class="mb-3">Event Types Distribution</h5>
+            <canvas id="fraudTypesChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Fraud Events Table -->
+<div class="row">
+    <div class="col-12">
+        <div class="table-custom">
+            <div class="d-flex justify-content-between align-items-center p-3 border-bottom">
+                <h5 class="mb-0">Recent Fraud Events</h5>
+                <div class="d-flex gap-2">
+                    <select class="form-select form-select-sm" style="width: auto;">
+                        <option>All Severities</option>
+                        <option>Critical</option>
+                        <option>High</option>
+                        <option>Medium</option>
+                        <option>Low</option>
+                    </select>
+                    <select class="form-select form-select-sm" style="width: auto;">
+                        <option>All Types</option>
+                        <option>Unscanned Item</option>
+                        <option>Weight Mismatch</option>
+                        <option>Multiple Items</option>
+                        <option>No Placement</option>
+                    </select>
+                </div>
+            </div>
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Event ID</th>
+                        <th>Timestamp</th>
+                        <th>Type</th>
+                        <th>Severity</th>
+                        <th>Node</th>
+                        <th>Customer</th>
+                        <th>Details</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in events %}
+                    <tr>
+                        <td><code>{{ event.event_id[:8] }}...</code></td>
+                        <td>
+                            <small class="text-muted">
+                                {{ event.timestamp[:16].replace('T', ' ') if event.timestamp else 'Unknown' }}
+                            </small>
+                        </td>
+                        <td>
+                            <span class="badge bg-{% if event.event_type == 'Unscanned Item' %}danger{% elif event.event_type == 'Weight Mismatch' %}warning{% else %}secondary{% endif %}">
+                                <i class="fas fa-{% if event.event_type == 'Unscanned Item' %}exclamation-triangle{% elif event.event_type == 'Weight Mismatch' %}balance-scale{% elif event.event_type == 'Multiple Items' %}clone{% else %}question{% endif %} me-1"></i>
+                                {{ event.event_type }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge bg-{% if event.severity == 'critical' %}danger{% elif event.severity == 'high' %}warning{% elif event.severity == 'medium' %}info{% else %}secondary{% endif %}">
+                                {{ event.severity.title() }}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-{% if 'cart' in event.node_id %}shopping-cart{% elif 'door' in event.node_id %}door-open{% elif 'shelf' in event.node_id %}cube{% else %}microchip{% endif %} me-2 text-muted"></i>
+                                <code class="small">{{ event.node_id or 'Unknown' }}</code>
+                            </div>
+                        </td>
+                        <td>
+                            {% if event.customer_id %}
+                                <div class="d-flex align-items-center">
+                                    <div class="avatar bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2" 
+                                         style="width: 24px; height: 24px; font-size: 10px;">
+                                        {{ event.customer_id[:2].upper() }}
+                                    </div>
+                                    <small>{{ event.customer_id[:8] }}...</small>
+                                </div>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="text-truncate" style="max-width: 200px;" title="{{ event.details }}">
+                                {{ event.details or 'No details available' }}
+                            </div>
+                        </td>
+                        <td>
+                            {% if event.auto_resolved %}
+                                <span class="badge bg-success">
+                                    <i class="fas fa-check me-1"></i>
+                                    Auto Resolved
+                                </span>
+                            {% else %}
+                                <span class="badge bg-warning text-dark">
+                                    <i class="fas fa-clock me-1"></i>
+                                    Pending Review
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-primary" title="View Details" onclick="viewEventDetails('{{ event.event_id }}')">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                {% if not event.auto_resolved %}
+                                <button type="button" class="btn btn-outline-success" title="Mark Resolved" onclick="resolveEvent('{{ event.event_id }}')">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                                <button type="button" class="btn btn-outline-warning" title="Escalate" onclick="escalateEvent('{{ event.event_id }}')">
+                                    <i class="fas fa-exclamation"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="9" class="text-center text-muted py-5">
+                            <i class="fas fa-shield-alt fa-3x mb-3 text-success"></i>
+                            <h5>No Fraud Events Found</h5>
+                            <p>Your system is secure! No fraud events detected recently.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Event Details Modal -->
+<div class="modal fade" id="eventDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-shield-alt me-2"></i>
+                    Fraud Event Details
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="eventDetailsContent">
+                    <!-- Content will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-warning">Escalate</button>
+                <button type="button" class="btn btn-success">Mark Resolved</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Fraud Timeline Chart
+    const timelineCtx = document.getElementById('fraudTimelineChart');
+    if (timelineCtx) {
+        new Chart(timelineCtx, {
+            type: 'line',
+            data: {
+                labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'],
+                datasets: [{
+                    label: 'Fraud Events',
+                    data: [2, 1, 4, 3, 6, 2],
+                    borderColor: '#ef4444',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    // Fraud Types Chart
+    const typesCtx = document.getElementById('fraudTypesChart');
+    if (typesCtx) {
+        new Chart(typesCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Unscanned Item', 'Weight Mismatch', 'Multiple Items', 'No Placement'],
+                datasets: [{
+                    data: [
+                        {{ events|selectattr("event_type", "equalto", "Unscanned Item")|list|length or 5 }},
+                        {{ events|selectattr("event_type", "equalto", "Weight Mismatch")|list|length or 3 }},
+                        {{ events|selectattr("event_type", "equalto", "Multiple Items")|list|length or 2 }},
+                        {{ events|selectattr("event_type", "equalto", "No Placement")|list|length or 4 }}
+                    ],
+                    backgroundColor: [
+                        '#ef4444',
+                        '#f59e0b',
+                        '#10b981',
+                        '#3b82f6'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+    }
+});
+
+// Event management functions
+function viewEventDetails(eventId) {
+    // Simulate loading event details
+    const modal = new bootstrap.Modal(document.getElementById('eventDetailsModal'));
+    document.getElementById('eventDetailsContent').innerHTML = `
+        <div class="row">
+            <div class="col-md-6">
+                <h6>Event Information</h6>
+                <table class="table table-sm">
+                    <tr><td><strong>Event ID:</strong></td><td><code>${eventId}</code></td></tr>
+                    <tr><td><strong>Type:</strong></td><td>Unscanned Item</td></tr>
+                    <tr><td><strong>Severity:</strong></td><td><span class="badge bg-warning">High</span></td></tr>
+                    <tr><td><strong>Node:</strong></td><td>cart-001</td></tr>
+                    <tr><td><strong>Customer:</strong></td><td>cust_12345</td></tr>
+                </table>
+            </div>
+            <div class="col-md-6">
+                <h6>Sensor Data</h6>
+                <table class="table table-sm">
+                    <tr><td><strong>Weight Expected:</strong></td><td>250g</td></tr>
+                    <tr><td><strong>Weight Detected:</strong></td><td>180g</td></tr>
+                    <tr><td><strong>RFID Scanned:</strong></td><td>ABC123456</td></tr>
+                    <tr><td><strong>Timestamp:</strong></td><td>2024-05-31 15:30:22</td></tr>
+                </table>
+            </div>
+        </div>
+        <hr>
+        <h6>Event Details</h6>
+        <p class="text-muted">Customer scanned item but weight sensor detected significant discrepancy. Item may have been swapped or multiple items placed simultaneously.</p>
+    `;
+    modal.show();
+}
+
+function resolveEvent(eventId) {
+    if (confirm('Mark this event as resolved?')) {
+        showNotification(`Event ${eventId.substring(0, 8)} marked as resolved`, 'success');
+        // Here you would make an API call to update the event status
+        setTimeout(() => {
+            window.location.reload();
+        }, 1000);
+    }
+}
+
+function escalateEvent(eventId) {
+    if (confirm('Escalate this event to security team?')) {
+        showNotification(`Event ${eventId.substring(0, 8)} escalated to security team`, 'warning');
+        // Here you would make an API call to escalate the event
+    }
+}
+</script>
+{% endblock %}

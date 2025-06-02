@@ -1,0 +1,466 @@
+{% extends "base.html" %}
+
+{% block title %}System Status - IoT Store Admin{% endblock %}
+{% block page_title %}System Status & Monitoring{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group" role="group">
+    <button type="button" class="btn btn-outline-primary" onclick="refreshSystemStatus()">
+        <i class="fas fa-sync-alt"></i> Refresh Status
+    </button>
+    <button type="button" class="btn btn-outline-info">
+        <i class="fas fa-cog"></i> Device Settings
+    </button>
+    <button type="button" class="btn btn-outline-success">
+        <i class="fas fa-download"></i> System Report
+    </button>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- System Overview Cards -->
+<div class="row mb-4">
+    <div class="col-md-3 mb-3">
+        <div class="stats-card">
+            <div class="icon bg-success text-white">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <div class="value">{{ nodes|selectattr("is_online", "equalto", true)|list|length }}</div>
+            <div class="label">Devices Online</div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="stats-card">
+            <div class="icon bg-danger text-white">
+                <i class="fas fa-exclamation-circle"></i>
+            </div>
+            <div class="value">{{ nodes|selectattr("is_online", "equalto", false)|list|length }}</div>
+            <div class="label">Devices Offline</div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="stats-card">
+            <div class="icon bg-info text-white">
+                <i class="fas fa-server"></i>
+            </div>
+            <div class="value">{{ nodes|length }}</div>
+            <div class="label">Total Devices</div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="stats-card">
+            <div class="icon bg-warning text-white">
+                <i class="fas fa-clock"></i>
+            </div>
+            <div class="value">99.8%</div>
+            <div class="label">System Uptime</div>
+        </div>
+    </div>
+</div>
+
+<!-- System Health Overview -->
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="chart-container">
+            <h5 class="mb-3">System Performance (Last 24 Hours)</h5>
+            <canvas id="systemPerformanceChart" height="100"></canvas>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="chart-container">
+            <h5 class="mb-3">Device Types Distribution</h5>
+            <canvas id="deviceTypesChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Device Status Grid -->
+<div class="row mb-4">
+    {% for node in nodes %}
+    <div class="col-md-6 col-lg-4 mb-3">
+        <div class="card h-100 border-{% if node.is_online %}success{% else %}danger{% endif %}">
+            <div class="card-header bg-{% if node.is_online %}success{% else %}danger{% endif %} text-white d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-{% if 'cart' in node.node_type %}shopping-cart{% elif 'door' in node.node_type %}door-open{% elif 'shelf' in node.node_type %}cube{% else %}microchip{% endif %} me-2"></i>
+                    <strong>{{ node.node_id or 'Unknown Device' }}</strong>
+                </div>
+                <div class="d-flex align-items-center">
+                    <span class="badge bg-{% if node.is_online %}light text-success{% else %}light text-danger{% endif %}">
+                        {% if node.is_online %}
+                            <i class="fas fa-circle me-1"></i> Online
+                        {% else %}
+                            <i class="fas fa-circle me-1"></i> Offline
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-12 mb-2">
+                        <small class="text-muted">Type:</small>
+                        <div class="fw-bold">{{ node.node_type.replace('-', ' ').title() if node.node_type else 'Unknown' }}</div>
+                    </div>
+                    <div class="col-12 mb-2">
+                        <small class="text-muted">Location:</small>
+                        <div>{{ node.location or 'Not specified' }}</div>
+                    </div>
+                    <div class="col-12 mb-2">
+                        <small class="text-muted">Status:</small>
+                        <span class="badge bg-{% if node.status == 'active' %}success{% elif node.status == 'maintenance' %}warning{% elif node.status == 'error' %}danger{% else %}secondary{% endif %}">
+                            {{ node.status.title() if node.status else 'Unknown' }}
+                        </span>
+                    </div>
+                    <div class="col-12 mb-2">
+                        <small class="text-muted">Sessions Today:</small>
+                        <div class="fw-bold text-primary">{{ node.total_sessions_today or 0 }}</div>
+                    </div>
+                    {% if node.current_session_id %}
+                    <div class="col-12 mb-2">
+                        <small class="text-muted">Current Session:</small>
+                        <div><code class="small">{{ node.current_session_id[:10] }}...</code></div>
+                    </div>
+                    {% endif %}
+                    <div class="col-12 mb-2">
+                        <small class="text-muted">Last Heartbeat:</small>
+                        <div class="small">
+                            {% if node.last_heartbeat %}
+                                {{ node.last_heartbeat[:16].replace('T', ' ') }}
+                            {% else %}
+                                Never
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-light">
+                <div class="d-flex justify-content-between">
+                    <button class="btn btn-sm btn-outline-primary" onclick="viewDeviceDetails('{{ node.node_id }}')">
+                        <i class="fas fa-eye"></i> Details
+                    </button>
+                    {% if node.is_online %}
+                    <button class="btn btn-sm btn-outline-warning" onclick="restartDevice('{{ node.node_id }}')">
+                        <i class="fas fa-redo"></i> Restart
+                    </button>
+                    {% else %}
+                    <button class="btn btn-sm btn-outline-success" onclick="wakeDevice('{{ node.node_id }}')">
+                        <i class="fas fa-power-off"></i> Wake
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="col-12">
+        <div class="text-center py-5">
+            <i class="fas fa-server fa-4x text-muted mb-3"></i>
+            <h4 class="text-muted">No Devices Found</h4>
+            <p class="text-muted">No IoT devices are currently registered in the system.</p>
+            <button class="btn btn-primary">
+                <i class="fas fa-plus"></i> Add Device
+            </button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Detailed System Logs -->
+<div class="row">
+    <div class="col-12">
+        <div class="table-custom">
+            <div class="d-flex justify-content-between align-items-center p-3 border-bottom">
+                <h5 class="mb-0">System Event Log</h5>
+                <div class="d-flex gap-2">
+                    <select class="form-select form-select-sm" style="width: auto;">
+                        <option>All Events</option>
+                        <option>Heartbeats</option>
+                        <option>Errors</option>
+                        <option>Restarts</option>
+                        <option>Maintenance</option>
+                    </select>
+                    <button class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-download"></i> Export
+                    </button>
+                </div>
+            </div>
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Device</th>
+                        <th>Event Type</th>
+                        <th>Message</th>
+                        <th>Severity</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Sample system events -->
+                    <tr>
+                        <td><small class="text-muted">2024-05-31 15:45:22</small></td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-shopping-cart me-2 text-primary"></i>
+                                <code>cart-001</code>
+                            </div>
+                        </td>
+                        <td><span class="badge bg-success">Heartbeat</span></td>
+                        <td>Device online and operational</td>
+                        <td><span class="badge bg-success">Normal</span></td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><small class="text-muted">2024-05-31 15:42:18</small></td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-door-open me-2 text-success"></i>
+                                <code>door-001</code>
+                            </div>
+                        </td>
+                        <td><span class="badge bg-info">Access</span></td>
+                        <td>Customer entry successful</td>
+                        <td><span class="badge bg-success">Normal</span></td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><small class="text-muted">2024-05-31 15:38:05</small></td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-cube me-2 text-info"></i>
+                                <code>shelf-001</code>
+                            </div>
+                        </td>
+                        <td><span class="badge bg-warning">Warning</span></td>
+                        <td>Low battery detected (15%)</td>
+                        <td><span class="badge bg-warning">Warning</span></td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-warning">
+                                <i class="fas fa-wrench"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><small class="text-muted">2024-05-31 15:35:12</small></td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-shopping-cart me-2 text-primary"></i>
+                                <code>cart-001</code>
+                            </div>
+                        </td>
+                        <td><span class="badge bg-primary">Session</span></td>
+                        <td>New shopping session started</td>
+                        <td><span class="badge bg-success">Normal</span></td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Device Details Modal -->
+<div class="modal fade" id="deviceDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-server me-2"></i>
+                    Device Details
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="deviceDetailsContent">
+                    <!-- Content will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-warning">Restart Device</button>
+                <button type="button" class="btn btn-info">Update Firmware</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // System Performance Chart
+    const perfCtx = document.getElementById('systemPerformanceChart');
+    if (perfCtx) {
+        new Chart(perfCtx, {
+            type: 'line',
+            data: {
+                labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'],
+                datasets: [
+                    {
+                        label: 'CPU Usage (%)',
+                        data: [25, 30, 45, 60, 55, 40],
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.4
+                    },
+                    {
+                        label: 'Memory Usage (%)',
+                        data: [35, 40, 50, 65, 60, 45],
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        tension: 0.4
+                    },
+                    {
+                        label: 'Network Activity',
+                        data: [20, 25, 35, 50, 45, 30],
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                        tension: 0.4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100
+                    }
+                }
+            }
+        });
+    }
+    
+    // Device Types Chart
+    const typesCtx = document.getElementById('deviceTypesChart');
+    if (typesCtx) {
+        new Chart(typesCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Smart Carts', 'Door Access', 'Smart Shelves'],
+                datasets: [{
+                    data: [
+                        {{ nodes|selectattr("node_type", "match", ".*cart.*")|list|length or 1 }},
+                        {{ nodes|selectattr("node_type", "match", ".*door.*")|list|length or 1 }},
+                        {{ nodes|selectattr("node_type", "match", ".*shelf.*")|list|length or 1 }}
+                    ],
+                    backgroundColor: [
+                        '#3b82f6',
+                        '#10b981',
+                        '#f59e0b'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+    }
+});
+
+// Device management functions
+function viewDeviceDetails(deviceId) {
+    const modal = new bootstrap.Modal(document.getElementById('deviceDetailsModal'));
+    document.getElementById('deviceDetailsContent').innerHTML = `
+        <div class="row">
+            <div class="col-md-6">
+                <h6>Device Information</h6>
+                <table class="table table-sm">
+                    <tr><td><strong>Device ID:</strong></td><td><code>${deviceId}</code></td></tr>
+                    <tr><td><strong>Type:</strong></td><td>Smart Cart</td></tr>
+                    <tr><td><strong>Status:</strong></td><td><span class="badge bg-success">Online</span></td></tr>
+                    <tr><td><strong>Location:</strong></td><td>Store Floor</td></tr>
+                    <tr><td><strong>IP Address:</strong></td><td>192.168.1.101</td></tr>
+                    <tr><td><strong>MAC Address:</strong></td><td>AA:BB:CC:DD:EE:FF</td></tr>
+                </table>
+            </div>
+            <div class="col-md-6">
+                <h6>Performance Metrics</h6>
+                <table class="table table-sm">
+                    <tr><td><strong>CPU Usage:</strong></td><td>45%</td></tr>
+                    <tr><td><strong>Memory Usage:</strong></td><td>60%</td></tr>
+                    <tr><td><strong>Temperature:</strong></td><td>42°C</td></tr>
+                    <tr><td><strong>Battery Level:</strong></td><td>85%</td></tr>
+                    <tr><td><strong>Uptime:</strong></td><td>2 days 14 hours</td></tr>
+                    <tr><td><strong>Sessions Today:</strong></td><td>15</td></tr>
+                </table>
+            </div>
+        </div>
+        <hr>
+        <h6>Hardware Status</h6>
+        <div class="row">
+            <div class="col-md-3">
+                <div class="text-center">
+                    <i class="fas fa-microchip fa-2x text-success mb-2"></i>
+                    <div><small>RFID Reader</small></div>
+                    <div><span class="badge bg-success">Operational</span></div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-center">
+                    <i class="fas fa-weight fa-2x text-success mb-2"></i>
+                    <div><small>Weight Sensor</small></div>
+                    <div><span class="badge bg-success">Operational</span></div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-center">
+                    <i class="fas fa-eye fa-2x text-success mb-2"></i>
+                    <div><small>Ultrasonic</small></div>
+                    <div><span class="badge bg-success">Operational</span></div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-center">
+                    <i class="fas fa-tv fa-2x text-warning mb-2"></i>
+                    <div><small>Display</small></div>
+                    <div><span class="badge bg-warning">Warning</span></div>
+                </div>
+            </div>
+        </div>
+    `;
+    modal.show();
+}
+
+function restartDevice(deviceId) {
+    if (confirm(`Restart device ${deviceId}? This will interrupt any active sessions.`)) {
+        showNotification(`Restart command sent to ${deviceId}`, 'info');
+        // Here you would make an API call to restart the device
+        setTimeout(() => {
+            showNotification(`Device ${deviceId} restarted successfully`, 'success');
+        }, 3000);
+    }
+}
+
+function wakeDevice(deviceId) {
+    showNotification(`Wake command sent to ${deviceId}`, 'info');
+    // Here you would make an API call to wake the device
+    setTimeout(() => {
+        showNotification(`Device ${deviceId} is coming online`, 'success');
+    }, 2000);
+}
+
+function refreshSystemStatus() {
+    showNotification('Refreshing system status...', 'info');
+    setTimeout(() => {
+        window.location.reload();
+    }, 1000);
+}
+</script>
+{% endblock %}

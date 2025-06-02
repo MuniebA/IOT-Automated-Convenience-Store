@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  iot-admin-ui:
+    build: .
+    container_name: iot-store-admin-local
+    ports:
+      - "5000:5000"
+    environment:
+      - AWS_REGION=us-east-1
+      - CUSTOMERS_TABLE=iot-convenience-store-customers-production
+      - PRODUCTS_TABLE=iot-convenience-store-products-production
+      - SESSIONS_TABLE=iot-convenience-store-sessions-production
+      - TRANSACTIONS_TABLE=iot-convenience-store-transactions-production
+      - FRAUD_EVENTS_TABLE=iot-convenience-store-fraud-events-production
+      - ACCESS_LOGS_TABLE=iot-convenience-store-access-logs-production
+      - SHELF_DISPLAYS_TABLE=iot-convenience-store-shelf-displays-production
+      - SYSTEM_NODES_TABLE=iot-convenience-store-system-nodes-production
+      - PORT=5000
+      # Add your AWS credentials for local testing (optional)
+      # - AWS_ACCESS_KEY_ID=your_key_here
+      # - AWS_SECRET_ACCESS_KEY=your_secret_here
+    volumes:
+      - .:/app  # For development - auto-reload on changes
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  nginx:
+    image: nginx:alpine
+    container_name: iot-store-nginx-local
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx-local.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - iot-admin-ui
+    restart: unless-stopped
+
+# For local development
+# Usage:
+# 1. Place this file in your Adminaws folder
+# 2. Run: docker-compose up
+# 3. Visit: http://localhost:5000 or http://localhost

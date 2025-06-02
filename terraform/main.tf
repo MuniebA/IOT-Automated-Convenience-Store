@@ -1056,15 +1056,14 @@ resource "aws_security_group" "admin_ui_sg" {
   }
 }
 
-# EC2 Instance for Admin UI - CORRECTED RESOURCE TYPE
+# EC2 Instance for Admin UI - UPDATED VERSION
 resource "aws_instance" "admin_ui" {
   ami                    = data.aws_ami.amazon_linux.id
-  instance_type          = "t3.micro"  # Free tier eligible
+  instance_type          = "t3.micro"
   vpc_security_group_ids = [aws_security_group.admin_ui_sg.id]
   iam_instance_profile   = aws_iam_instance_profile.admin_ui_profile.name
   
-  user_data = templatefile("${path.module}/admin_ui_bootstrap.sh", {
-    github_repo_url      = var.github_repo_url
+  user_data = templatefile("${path.module}/admin_ui_docker_setup.sh", {
     admin_ui_port       = var.admin_ui_port
     aws_region          = var.aws_region
     customers_table     = aws_dynamodb_table.customers.name

@@ -1,4 +1,18 @@
 Flask==2.3.3
 Flask-CORS==4.0.0
 python-dotenv==1.0.0
+boto3==1.34.144
+botocore==1.34.144
+Jinja2==3.1.2
 Werkzeug==2.3.7
+MarkupSafe==2.1.3
+itsdangerous==2.1.2
+click==8.1.7
+python-dateutil==2.8.2
+urllib3==1.26.18
+s3transfer==0.10.2
+jmespath==1.0.1
+gunicorn==21.2.0
+# Additional dependencies for production
+requests==2.31.0
+certifi==2023.7.22
