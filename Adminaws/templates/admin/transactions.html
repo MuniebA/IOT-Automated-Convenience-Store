@@ -1,0 +1,461 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Transaction Management - IoT Store Admin{% endblock %}
+{% block page_title %}Transaction Management{% endblock %}
+{% block page_subtitle %}Monitor all store transactions and payments{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group" role="group">
+    <button type="button" class="btn btn-outline-primary" onclick="refreshTransactions()">
+        <i class="fas fa-sync-alt"></i> Refresh
+    </button>
+    <button type="button" class="btn btn-outline-success" onclick="exportTransactions()">
+        <i class="fas fa-file-excel"></i> Export
+    </button>
+    <button type="button" class="btn btn-outline-info" onclick="generateReport()">
+        <i class="fas fa-chart-line"></i> Generate Report
+    </button>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Transaction Summary Cards -->
+<div class="row mb-4">
+    <div class="col-xl-3 col-md-6 mb-3">
+        <div class="stats-card border-start border-success border-4">
+            <div class="icon bg-success text-white">
+                <i class="fas fa-dollar-sign"></i>
+            </div>
+            <div class="value text-success">$12,450</div>
+            <div class="label">Today's Revenue</div>
+            <small class="text-muted">From 45 transactions</small>
+        </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-3">
+        <div class="stats-card border-start border-primary border-4">
+            <div class="icon bg-primary text-white">
+                <i class="fas fa-receipt"></i>
+            </div>
+            <div class="value text-primary">45</div>
+            <div class="label">Transactions Today</div>
+            <small class="text-muted">+8% from yesterday</small>
+        </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-3">
+        <div class="stats-card border-start border-info border-4">
+            <div class="icon bg-info text-white">
+                <i class="fas fa-chart-line"></i>
+            </div>
+            <div class="value text-info">$276.67</div>
+            <div class="label">Average Order</div>
+            <small class="text-muted">Above monthly average</small>
+        </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-3">
+        <div class="stats-card border-start border-warning border-4">
+            <div class="icon bg-warning text-white">
+                <i class="fas fa-clock"></i>
+            </div>
+            <div class="value text-warning">2</div>
+            <div class="label">Pending Transactions</div>
+            <small class="text-muted">Need review</small>
+        </div>
+    </div>
+</div>
+
+<!-- Transaction Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Date Range</label>
+                <select class="form-select" id="dateRange">
+                    <option value="today">Today</option>
+                    <option value="week">This Week</option>
+                    <option value="month">This Month</option>
+                    <option value="custom">Custom Range</option>
+                </select>
+            </div>
+            
+            <div class="col-md-3">
+                <label class="form-label">Customer Type</label>
+                <select class="form-select" id="customerType">
+                    <option value="">All Customers</option>
+                    <option value="REGULAR">Regular</option>
+                    <option value="VIP">VIP</option>
+                    <option value="EMPLOYEE">Employee</option>
+                </select>
+            </div>
+            
+            <div class="col-md-3">
+                <label class="form-label">Amount Range</label>
+                <select class="form-select" id="amountRange">
+                    <option value="">All Amounts</option>
+                    <option value="0-50">$0 - $50</option>
+                    <option value="50-100">$50 - $100</option>
+                    <option value="100+">$100+</option>
+                </select>
+            </div>
+            
+            <div class="col-md-3">
+                <div class="btn-group w-100">
+                    <button class="btn btn-primary" onclick="applyFilters()">
+                        <i class="fas fa-filter"></i> Apply
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="clearFilters()">
+                        <i class="fas fa-times"></i> Clear
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Transactions Table -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            <i class="fas fa-receipt me-2"></i>
+            Recent Transactions
+        </h5>
+        <small class="text-muted">Last updated: <span id="lastUpdated">just now</span></small>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Transaction ID</th>
+                        <th>Timestamp</th>
+                        <th>Customer</th>
+                        <th>Items</th>
+                        <th>Amount</th>
+                        <th>Payment Method</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Sample transactions -->
+                    <tr>
+                        <td><code>txn_abc123</code></td>
+                        <td>
+                            <small>2024-06-04 14:30:22</small>
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="avatar bg-primary text-white rounded-circle me-2" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-size: 12px;">
+                                    JS
+                                </div>
+                                <div>
+                                    <div class="fw-bold">John Smith</div>
+                                    <small class="text-muted">VIP Customer</small>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge bg-info">3 items</span>
+                        </td>
+                        <td>
+                            <strong class="text-success">$45.67</strong>
+                        </td>
+                        <td>
+                            <i class="fas fa-credit-card text-primary me-1"></i>
+                            <small>Card</small>
+                        </td>
+                        <td>
+                            <span class="badge bg-success">Completed</span>
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary" onclick="viewTransaction('txn_def456')" title="View Details">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button class="btn btn-outline-info" onclick="printReceipt('txn_def456')" title="Print Receipt">
+                                    <i class="fas fa-print"></i>
+                                </button>
+                                <button class="btn btn-outline-warning" onclick="refundTransaction('txn_def456')" title="Refund">
+                                    <i class="fas fa-undo"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>txn_ghi789</code></td>
+                        <td>
+                            <small>2024-06-04 14:20:08</small>
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="avatar bg-warning text-white rounded-circle me-2" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-size: 12px;">
+                                    RJ
+                                </div>
+                                <div>
+                                    <div class="fw-bold">Robert Johnson</div>
+                                    <small class="text-muted">Employee</small>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge bg-info">2 items</span>
+                        </td>
+                        <td>
+                            <strong class="text-success">$18.45</strong>
+                        </td>
+                        <td>
+                            <i class="fas fa-credit-card text-primary me-1"></i>
+                            <small>Card</small>
+                        </td>
+                        <td>
+                            <span class="badge bg-warning">Pending</span>
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary" onclick="viewTransaction('txn_ghi789')" title="View Details">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button class="btn btn-outline-success" onclick="approveTransaction('txn_ghi789')" title="Approve">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                                <button class="btn btn-outline-danger" onclick="rejectTransaction('txn_ghi789')" title="Reject">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card-footer bg-light">
+        <div class="d-flex justify-content-between align-items-center">
+            <small class="text-muted">Showing 3 of 45 transactions</small>
+            <nav>
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item">
+                        <a class="page-link" href="#" onclick="loadPage(1)">Previous</a>
+                    </li>
+                    <li class="page-item active">
+                        <span class="page-link">1</span>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="#" onclick="loadPage(2)">2</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="#" onclick="loadPage(3)">3</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="#" onclick="loadPage(2)">Next</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+<!-- Transaction Details Modal -->
+<div class="modal fade" id="transactionModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-receipt me-2"></i>
+                    Transaction Details
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="transactionDetails">
+                    <!-- Content loaded dynamically -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-info">Print Receipt</button>
+                <button type="button" class="btn btn-warning">Process Refund</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function refreshTransactions() {
+    showNotification('Refreshing transaction data...', 'info');
+    setTimeout(() => {
+        location.reload();
+    }, 1000);
+}
+
+function exportTransactions() {
+    showNotification('Exporting transaction data...', 'info');
+    // Implementation for export
+}
+
+function generateReport() {
+    showNotification('Generating transaction report...', 'info');
+    // Implementation for report generation
+}
+
+function applyFilters() {
+    const dateRange = document.getElementById('dateRange').value;
+    const customerType = document.getElementById('customerType').value;
+    const amountRange = document.getElementById('amountRange').value;
+    
+    showNotification('Applying filters...', 'info');
+    // Implementation for filtering
+}
+
+function clearFilters() {
+    document.getElementById('dateRange').value = 'today';
+    document.getElementById('customerType').value = '';
+    document.getElementById('amountRange').value = '';
+    showNotification('Filters cleared', 'info');
+}
+
+function viewTransaction(transactionId) {
+    const modal = new bootstrap.Modal(document.getElementById('transactionModal'));
+    document.getElementById('transactionDetails').innerHTML = `
+        <div class="row">
+            <div class="col-md-6">
+                <h6>Transaction Information</h6>
+                <table class="table table-sm">
+                    <tr><td><strong>Transaction ID:</strong></td><td><code>${transactionId}</code></td></tr>
+                    <tr><td><strong>Date & Time:</strong></td><td>2024-06-04 14:30:22</td></tr>
+                    <tr><td><strong>Customer:</strong></td><td>John Smith (VIP)</td></tr>
+                    <tr><td><strong>Payment Method:</strong></td><td>Credit Card</td></tr>
+                    <tr><td><strong>Status:</strong></td><td><span class="badge bg-success">Completed</span></td></tr>
+                </table>
+            </div>
+            <div class="col-md-6">
+                <h6>Purchase Summary</h6>
+                <table class="table table-sm">
+                    <tr><td><strong>Subtotal:</strong></td><td>$42.30</td></tr>
+                    <tr><td><strong>Tax:</strong></td><td>$3.37</td></tr>
+                    <tr><td><strong>Discount:</strong></td><td>-$0.00</td></tr>
+                    <tr><td><strong>Total:</strong></td><td class="text-success"><strong>$45.67</strong></td></tr>
+                </table>
+            </div>
+        </div>
+        <hr>
+        <h6>Items Purchased</h6>
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Item</th>
+                        <th>Quantity</th>
+                        <th>Unit Price</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Premium Coffee</td>
+                        <td>2</td>
+                        <td>$12.99</td>
+                        <td>$25.98</td>
+                    </tr>
+                    <tr>
+                        <td>Energy Drink</td>
+                        <td>1</td>
+                        <td>$3.49</td>
+                        <td>$3.49</td>
+                    </tr>
+                    <tr>
+                        <td>Chocolate Bar</td>
+                        <td>1</td>
+                        <td>$4.99</td>
+                        <td>$4.99</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    `;
+    modal.show();
+}
+
+function printReceipt(transactionId) {
+    showNotification(`Printing receipt for ${transactionId}`, 'info');
+    // Implementation for printing
+}
+
+function refundTransaction(transactionId) {
+    if (confirm(`Process refund for transaction ${transactionId}?`)) {
+        showNotification(`Processing refund for ${transactionId}`, 'warning');
+        // Implementation for refund
+    }
+}
+
+function approveTransaction(transactionId) {
+    if (confirm(`Approve transaction ${transactionId}?`)) {
+        showNotification(`Transaction ${transactionId} approved`, 'success');
+        // Implementation for approval
+    }
+}
+
+function rejectTransaction(transactionId) {
+    if (confirm(`Reject transaction ${transactionId}?`)) {
+        showNotification(`Transaction ${transactionId} rejected`, 'warning');
+        // Implementation for rejection
+    }
+}
+
+function loadPage(page) {
+    showNotification(`Loading page ${page}...`, 'info');
+    // Implementation for pagination
+}
+</script>
+{% endblock %}
+
+
+{% comment %} d>
+                            <span class="badge bg-success">Completed</span>
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary" onclick="viewTransaction('txn_abc123')" title="View Details">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button class="btn btn-outline-info" onclick="printReceipt('txn_abc123')" title="Print Receipt">
+                                    <i class="fas fa-print"></i>
+                                </button>
+                                <button class="btn btn-outline-warning" onclick="refundTransaction('txn_abc123')" title="Refund">
+                                    <i class="fas fa-undo"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    
+                    <tr>
+                        <td><code>txn_def456</code></td>
+                        <td>
+                            <small>2024-06-04 14:25:15</small>
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="avatar bg-success text-white rounded-circle me-2" style="width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-size: 12px;">
+                                    EM
+                                </div>
+                                <div>
+                                    <div class="fw-bold">Emma Miller</div>
+                                    <small class="text-muted">Regular Customer</small>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge bg-info">5 items</span>
+                        </td>
+                        <td>
+                            <strong class="text-success">$32.89</strong>
+                        </td>
+                        <td>
+                            <i class="fas fa-credit-card text-primary me-1"></i>
+                            <small>Card</small>
+                        </td>
+                        <t {% endcomment %}

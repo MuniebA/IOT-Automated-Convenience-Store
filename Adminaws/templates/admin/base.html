@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}IoT Store Admin Control Center{% endblock %}</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Custom Admin CSS -->
+    <link href="{{ url_for('static', filename='css/admin.css') }}" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #1e40af;
+            --success-color: #059669;
+            --warning-color: #d97706;
+            --danger-color: #dc2626;
+            --dark-color: #111827;
+            --light-color: #f8fafc;
+            --sidebar-width: 280px;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: #f1f5f9;
+            overflow-x: hidden;
+        }
+
+        .admin-sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            width: var(--sidebar-width);
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            z-index: 1000;
+            transition: all 0.3s ease;
+            box-shadow: 2px 0 20px rgba(0,0,0,0.1);
+            overflow-y: auto;
+        }
+
+        .admin-content {
+            margin-left: var(--sidebar-width);
+            min-height: 100vh;
+            transition: all 0.3s ease;
+        }
+
+        .sidebar-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .sidebar-brand {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: white;
+            text-decoration: none;
+        }
+
+        .sidebar-nav {
+            padding: 1rem 0;
+        }
+
+        .nav-section {
+            margin-bottom: 2rem;
+        }
+
+        .nav-section-title {
+            padding: 0 1.5rem 0.5rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: rgba(255,255,255,0.6);
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1.5rem;
+            color: rgba(255,255,255,0.8);
+            text-decoration: none;
+            transition: all 0.3s ease;
+            border: none;
+            background: none;
+        }
+
+        .nav-link:hover,
+        .nav-link.active {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            transform: translateX(4px);
+        }
+
+        .nav-link i {
+            width: 20px;
+            margin-right: 0.75rem;
+            font-size: 1rem;
+        }
+
+        .nav-badge {
+            margin-left: auto;
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.2);
+        }
+
+        .main-header {
+            background: white;
+            padding: 1rem 2rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .main-content {
+            padding: 2rem;
+        }
+
+        .stats-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border: 1px solid #e5e7eb;
+            transition: all 0.3s ease;
+            height: 100%;
+        }
+
+        .stats-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+
+        .stats-card .icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .stats-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            line-height: 1;
+            margin-bottom: 0.5rem;
+        }
+
+        .stats-card .label {
+            color: #6b7280;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .card {
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .card-header {
+            background: #f9fafb;
+            border-bottom: 1px solid #e5e7eb;
+            border-radius: 12px 12px 0 0 !important;
+            padding: 1rem 1.5rem;
+        }
+
+        .btn {
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+        }
+
+        .badge {
+            border-radius: 6px;
+            font-weight: 500;
+        }
+
+        .alert {
+            border-radius: 8px;
+            border: none;
+        }
+
+        .table {
+            margin-bottom: 0;
+        }
+
+        .table th {
+            border-top: none;
+            font-weight: 600;
+            color: var(--dark-color);
+            font-size: 0.875rem;
+            padding: 1rem 0.75rem;
+        }
+
+        .table td {
+            padding: 0.75rem;
+            vertical-align: middle;
+        }
+
+        /* Mobile responsiveness */
+        @media (max-width: 768px) {
+            .admin-sidebar {
+                transform: translateX(-100%);
+            }
+            
+            .admin-sidebar.show {
+                transform: translateX(0);
+            }
+            
+            .admin-content {
+                margin-left: 0;
+            }
+            
+            .main-content {
+                padding: 1rem;
+            }
+        }
+
+        /* Status indicators */
+        .status-online {
+            color: #059669;
+        }
+
+        .status-offline {
+            color: #dc2626;
+        }
+
+        .status-warning {
+            color: #d97706;
+        }
+
+        /* Loading animations */
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #f3f4f6;
+            border-radius: 50%;
+            border-top-color: var(--primary-color);
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Notification styles */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            min-width: 300px;
+            max-width: 400px;
+        }
+
+        /* System status colors */
+        .device-card {
+            transition: all 0.3s ease;
+        }
+
+        .device-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .trend-indicator {
+            text-align: center;
+            min-width: 60px;
+        }
+    </style>
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Admin Sidebar -->
+    <nav class="admin-sidebar" id="adminSidebar">
+        <div class="sidebar-header">
+            <a href="{{ url_for('admin_dashboard') }}" class="sidebar-brand">
+                <i class="fas fa-store me-2"></i>
+                IoT Store Control
+            </a>
+            <div class="mt-2">
+                <small class="text-white-50">Admin Dashboard v2.0</small>
+            </div>
+        </div>
+        
+        <div class="sidebar-nav">
+            <!-- Main Navigation -->
+            <div class="nav-section">
+                <div class="nav-section-title">Dashboard</div>
+                <a href="{{ url_for('admin_dashboard') }}" 
+                   class="nav-link {% if request.endpoint == 'admin_dashboard' %}active{% endif %}">
+                    <i class="fas fa-tachometer-alt"></i>
+                    Control Center
+                </a>
+            </div>
+            
+            <!-- Customer Management -->
+            <div class="nav-section">
+                <div class="nav-section-title">Customer Management</div>
+                <a href="{{ url_for('admin_customers') }}" 
+                   class="nav-link {% if request.endpoint == 'admin_customers' %}active{% endif %}">
+                    <i class="fas fa-users"></i>
+                    Customers
+                    <span class="nav-badge">{{ session.get('customer_count', 0) }}</span>
+                </a>
+                <a href="{{ url_for('admin_register_card') }}" 
+                   class="nav-link {% if request.endpoint == 'admin_register_card' %}active{% endif %}">
+                    <i class="fas fa-id-card"></i>
+                    Register Cards
+                </a>
+            </div>
+            
+            <!-- Store Operations -->
+            <div class="nav-section">
+                <div class="nav-section-title">Store Operations</div>
+                <a href="{{ url_for('admin_inventory') }}" 
+                   class="nav-link {% if request.endpoint == 'admin_inventory' %}active{% endif %}">
+                    <i class="fas fa-boxes"></i>
+                    Inventory
+                </a>
+                <a href="/admin/transactions" class="nav-link">
+                    <i class="fas fa-receipt"></i>
+                    Transactions
+                </a>
+                <a href="/admin/promotions" class="nav-link">
+                    <i class="fas fa-tags"></i>
+                    Promotions
+                </a>
+            </div>
+            
+            <!-- Security & Monitoring -->
+            <div class="nav-section">
+                <div class="nav-section-title">Security & Monitoring</div>
+                <a href="{{ url_for('admin_fraud') }}" 
+                   class="nav-link {% if request.endpoint == 'admin_fraud' %}active{% endif %}">
+                    <i class="fas fa-shield-alt"></i>
+                    Fraud Detection
+                    <span class="nav-badge bg-warning">{{ session.get('fraud_count', 0) }}</span>
+                </a>
+                <a href="{{ url_for('admin_system') }}" 
+                   class="nav-link {% if request.endpoint == 'admin_system' %}active{% endif %}">
+                    <i class="fas fa-server"></i>
+                    System Status
+                </a>
+                <a href="/admin/access-logs" class="nav-link">
+                    <i class="fas fa-clipboard-list"></i>
+                    Access Logs
+                </a>
+            </div>
+            
+            <!-- Analytics & Reports -->
+            <div class="nav-section">
+                <div class="nav-section-title">Analytics & Reports</div>
+                <a href="{{ url_for('admin_analytics') }}" 
+                   class="nav-link {% if request.endpoint == 'admin_analytics' %}active{% endif %}">
+                    <i class="fas fa-chart-bar"></i>
+                    Analytics
+                </a>
+                <a href="/admin/reports" class="nav-link">
+                    <i class="fas fa-file-alt"></i>
+                    Reports
+                </a>
+                <a href="/admin/ai-insights" class="nav-link">
+                    <i class="fas fa-brain"></i>
+                    AI Insights
+                </a>
+            </div>
+            
+            <!-- Settings -->
+            <div class="nav-section">
+                <div class="nav-section-title">Settings</div>
+                <a href="/admin/settings" class="nav-link">
+                    <i class="fas fa-cog"></i>
+                    System Settings
+                </a>
+                <a href="/admin/users" class="nav-link">
+                    <i class="fas fa-user-shield"></i>
+                    Admin Users
+                </a>
+                <a href="{{ url_for('admin_logout') }}" class="nav-link">
+                    <i class="fas fa-sign-out-alt"></i>
+                    Logout
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <div class="admin-content">
+        <!-- Header -->
+        <header class="main-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <!-- Mobile menu toggle -->
+                    <button class="btn btn-link d-md-none me-3" id="sidebarToggle">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    
+                    <div>
+                        <h1 class="h3 mb-0">{% block page_title %}Dashboard{% endblock %}</h1>
+                        <small class="text-muted">{% block page_subtitle %}Manage your IoT store operations{% endblock %}</small>
+                    </div>
+                </div>
+                
+                <div class="d-flex align-items-center">
+                    {% block page_actions %}{% endblock %}
+                    
+                    <!-- Admin Profile -->
+                    <div class="dropdown ms-3">
+                        <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-user-circle me-2"></i>
+                            {{ session.get('admin_user', 'Admin') }}
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="/admin/profile">
+                                <i class="fas fa-user me-2"></i>Profile
+                            </a></li>
+                            <li><a class="dropdown-item" href="/admin/settings">
+                                <i class="fas fa-cog me-2"></i>Settings
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('admin_logout') }}">
+                                <i class="fas fa-sign-out-alt me-2"></i>Logout
+                            </a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="flash-messages mb-4">
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show">
+                                <i class="fas fa-{% if category == 'success' %}check-circle{% elif category == 'error' %}exclamation-triangle{% elif category == 'warning' %}exclamation-triangle{% else %}info-circle{% endif %} me-2"></i>
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+            
+            <!-- Page Content -->
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Custom Admin JS -->
+    <script>
+        // Mobile sidebar toggle
+        document.getElementById('sidebarToggle')?.addEventListener('click', function() {
+            document.getElementById('adminSidebar').classList.toggle('show');
+        });
+
+        // Close sidebar when clicking outside on mobile
+        document.addEventListener('click', function(e) {
+            const sidebar = document.getElementById('adminSidebar');
+            const toggle = document.getElementById('sidebarToggle');
+            
+            if (window.innerWidth <= 768 && 
+                !sidebar.contains(e.target) && 
+                !toggle.contains(e.target) && 
+                sidebar.classList.contains('show')) {
+                sidebar.classList.remove('show');
+            }
+        });
+
+        // Auto-refresh functionality
+        function startAutoRefresh(interval = 30000) {
+            setInterval(function() {
+                if (!document.hidden) {
+                    fetch('/api/dashboard/realtime')
+                        .then(response => response.json())
+                        .then(data => {
+                            console.log('Dashboard refreshed:', data);
+                            // Update specific elements if needed
+                        })
+                        .catch(error => console.error('Auto-refresh failed:', error));
+                }
+            }, interval);
+        }
+
+        // Notification system
+        function showNotification(message, type = 'info', duration = 5000) {
+            const alertClass = type === 'success' ? 'alert-success' : 
+                              type === 'error' ? 'alert-danger' : 
+                              type === 'warning' ? 'alert-warning' : 'alert-info';
+            
+            const notification = document.createElement('div');
+            notification.className = `alert ${alertClass} alert-dismissible fade show notification`;
+            notification.innerHTML = `
+                <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-triangle' : 'info-circle'} me-2"></i>
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // Auto remove
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.remove();
+                }
+            }, duration);
+        }
+
+        // Initialize features
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize tooltips
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+
+            // Start auto-refresh for dashboard
+            if (window.location.pathname.includes('dashboard')) {
+                startAutoRefresh();
+            }
+        });
+
+        // Global utility functions
+        window.showNotification = showNotification;
+    </script>
+    
+    <!-- Custom Admin JS -->
+    <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

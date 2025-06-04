@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-IoT Store Admin UI - Production Flask Application
-Enhanced version with proper DynamoDB integration
+Enhanced IoT Store Admin & Customer Portal
+Complete system management and customer self-service
 """
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
 import boto3
 import os
 import json
@@ -14,19 +14,41 @@ from datetime import datetime, timedelta
 from botocore.exceptions import NoCredentialsError, ClientError
 from decimal import Decimal
 import logging
+from functools import wraps
+import traceback
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Configure enhanced logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
+# Add custom Jinja2 filters
+
+
+@app.template_filter('strftime')
+def strftime_filter(datetime_str, format='%H:%M:%S'):
+    """Custom filter to format current time"""
+    try:
+        if datetime_str == 'now':
+            return datetime.now().strftime(format)
+        else:
+            # If it's an actual datetime string, parse and format it
+            dt = datetime.fromisoformat(datetime_str.replace('Z', '+00:00'))
+            return dt.strftime(format)
+    except:
+        return datetime.now().strftime(format)
+
 
 class Config:
-    SECRET_KEY = os.environ.get('SECRET_KEY', 'iot-store-secret-key-prod')
+    SECRET_KEY = os.environ.get(
+        'SECRET_KEY', 'iot-store-secret-key-prod-change-this')
     AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
 
-    # DynamoDB Table Names from environment variables
+    # DynamoDB Table Names - Enhanced
     CUSTOMERS_TABLE = os.environ.get(
         'CUSTOMERS_TABLE', 'iot-convenience-store-customers-production')
     PRODUCTS_TABLE = os.environ.get(
@@ -39,597 +61,749 @@ class Config:
         'FRAUD_EVENTS_TABLE', 'iot-convenience-store-fraud-events-production')
     ACCESS_LOGS_TABLE = os.environ.get(
         'ACCESS_LOGS_TABLE', 'iot-convenience-store-access-logs-production')
-    SHELF_DISPLAYS_TABLE = os.environ.get(
-        'SHELF_DISPLAYS_TABLE', 'iot-convenience-store-shelf-displays-production')
     SYSTEM_NODES_TABLE = os.environ.get(
         'SYSTEM_NODES_TABLE', 'iot-convenience-store-system-nodes-production')
-    SCANNED_ITEMS_TABLE = os.environ.get(
-        'SCANNED_ITEMS_TABLE', 'iot-convenience-store-scanned-items-production')
-    SENSOR_DATA_TABLE = os.environ.get(
-        'SENSOR_DATA_TABLE', 'iot-convenience-store-sensor-data-production')
-    INVENTORY_TRANSACTIONS_TABLE = os.environ.get(
-        'INVENTORY_TRANSACTIONS_TABLE', 'iot-convenience-store-inventory-transactions-production')
+    ACTIVE_SESSIONS_TABLE = os.environ.get(
+        'ACTIVE_SESSIONS_TABLE', 'iot-convenience-store-active-sessions-production')
+    CUSTOMER_PROFILES_TABLE = os.environ.get(
+        'CUSTOMER_PROFILES_TABLE', 'iot-convenience-store-customer-profiles-production')
+    CUSTOMER_CLUSTERS_TABLE = os.environ.get(
+        'CUSTOMER_CLUSTERS_TABLE', 'iot-convenience-store-customer-clusters-production')
+    DISCOUNT_EFFECTIVENESS_TABLE = os.environ.get(
+        'DISCOUNT_EFFECTIVENESS_TABLE', 'iot-convenience-store-discount-effectiveness-production')
+    PURCHASE_BEHAVIOR_TABLE = os.environ.get(
+        'PURCHASE_BEHAVIOR_TABLE', 'iot-convenience-store-purchase-behavior-production')
 
 
 app.config.from_object(Config)
 
 
-class DynamoDBClient:
+class EnhancedDynamoDBClient:
     def __init__(self):
         try:
+            logger.info("Initializing DynamoDB client...")
+
+            # Check AWS credentials
+            if not os.environ.get('AWS_ACCESS_KEY_ID'):
+                logger.warning("AWS_ACCESS_KEY_ID not found in environment")
+            if not os.environ.get('AWS_SECRET_ACCESS_KEY'):
+                logger.warning(
+                    "AWS_SECRET_ACCESS_KEY not found in environment")
+
             self.dynamodb = boto3.resource(
-                'dynamodb', region_name=app.config['AWS_REGION'])
-            self.tables = {
-                'customers': self.dynamodb.Table(app.config['CUSTOMERS_TABLE']),
-                'products': self.dynamodb.Table(app.config['PRODUCTS_TABLE']),
-                'sessions': self.dynamodb.Table(app.config['SESSIONS_TABLE']),
-                'transactions': self.dynamodb.Table(app.config['TRANSACTIONS_TABLE']),
-                'fraud_events': self.dynamodb.Table(app.config['FRAUD_EVENTS_TABLE']),
-                'access_logs': self.dynamodb.Table(app.config['ACCESS_LOGS_TABLE']),
-                'shelf_displays': self.dynamodb.Table(app.config['SHELF_DISPLAYS_TABLE']),
-                'system_nodes': self.dynamodb.Table(app.config['SYSTEM_NODES_TABLE']),
-                'scanned_items': self.dynamodb.Table(app.config['SCANNED_ITEMS_TABLE']),
-                'sensor_data': self.dynamodb.Table(app.config['SENSOR_DATA_TABLE']),
-                'inventory_transactions': self.dynamodb.Table(app.config['INVENTORY_TRANSACTIONS_TABLE'])
+                'dynamodb',
+                region_name=app.config['AWS_REGION'],
+                aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
+                aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY')
+            )
+
+            self.iot_client = boto3.client(
+                'iot-data',
+                region_name=app.config['AWS_REGION'],
+                aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
+                aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY')
+            )
+
+            # Initialize tables with error handling
+            self.tables = {}
+            table_configs = {
+                'customers': app.config['CUSTOMERS_TABLE'],
+                'products': app.config['PRODUCTS_TABLE'],
+                'sessions': app.config['SESSIONS_TABLE'],
+                'transactions': app.config['TRANSACTIONS_TABLE'],
+                'fraud_events': app.config['FRAUD_EVENTS_TABLE'],
+                'access_logs': app.config['ACCESS_LOGS_TABLE'],
+                'system_nodes': app.config['SYSTEM_NODES_TABLE'],
+                'active_sessions': app.config['ACTIVE_SESSIONS_TABLE'],
+                'customer_profiles': app.config['CUSTOMER_PROFILES_TABLE'],
+                'customer_clusters': app.config['CUSTOMER_CLUSTERS_TABLE'],
+                'discount_effectiveness': app.config['DISCOUNT_EFFECTIVENESS_TABLE'],
+                'purchase_behavior': app.config['PURCHASE_BEHAVIOR_TABLE']
             }
+
+            for table_name, table_config in table_configs.items():
+                try:
+                    table = self.dynamodb.Table(table_config)
+                    # Test table access
+                    table.load()
+                    self.tables[table_name] = table
+                    logger.info(
+                        f"✅ Successfully connected to table: {table_config}")
+                except Exception as e:
+                    logger.warning(
+                        f"⚠️ Could not connect to table {table_config}: {e}")
+                    self.tables[table_name] = None
+
             self.connected = True
             logger.info(
-                f"✅ Connected to DynamoDB in {app.config['AWS_REGION']}")
-            logger.info(f"📊 Tables configured: {list(self.tables.keys())}")
-
-            # Initialize tables with sample data if empty
-            self._initialize_sample_data()
+                f"✅ DynamoDB client initialized in {app.config['AWS_REGION']}")
 
         except Exception as e:
             logger.error(f"❌ DynamoDB connection error: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             self.connected = False
+            self.tables = {}
 
-    def _initialize_sample_data(self):
-        """Initialize tables with sample data if they're empty"""
+    def safe_table_operation(self, table_name, operation, default_value=None):
+        """Safely perform table operations with error handling"""
         try:
-            # Add sample customers
-            customers_count = self.tables['customers'].scan(Select='COUNT')[
-                'Count']
-            if customers_count == 0:
-                logger.info("🔄 Initializing sample customers...")
-                sample_customers = [
-                    {
-                        'customer_id': 'cust_001',
-                        'customer_name': 'John Doe',
-                        'customer_type': 'VIP',
-                        'rfid_card_uid': 'ABC123456789',
-                        'email': 'john.doe@university.edu',
-                        'phone': '+1234567890',
-                        'total_spent': Decimal('1250.75'),
-                        'total_visits': 45,
-                        'membership_status': 'ACTIVE',
-                        'created_at': datetime.utcnow().isoformat(),
-                        'last_visit': datetime.utcnow().isoformat()
-                    },
-                    {
-                        'customer_id': 'cust_002',
-                        'customer_name': 'Jane Smith',
-                        'customer_type': 'REGULAR',
-                        'rfid_card_uid': 'DEF987654321',
-                        'email': 'jane.smith@university.edu',
-                        'phone': '+1987654321',
-                        'total_spent': Decimal('675.25'),
-                        'total_visits': 23,
-                        'membership_status': 'ACTIVE',
-                        'created_at': datetime.utcnow().isoformat(),
-                        'last_visit': (datetime.utcnow() - timedelta(days=2)).isoformat()
-                    },
-                    {
-                        'customer_id': 'cust_003',
-                        'customer_name': 'Admin User',
-                        'customer_type': 'ADMIN',
-                        'rfid_card_uid': 'GHI555666777',
-                        'email': 'admin@iotstore.com',
-                        'phone': '+1555666777',
-                        'total_spent': Decimal('0.00'),
-                        'total_visits': 5,
-                        'membership_status': 'ACTIVE',
-                        'created_at': datetime.utcnow().isoformat(),
-                        'last_visit': datetime.utcnow().isoformat()
-                    }
-                ]
+            if not self.tables.get(table_name):
+                logger.warning(f"Table {table_name} not available")
+                return default_value
 
-                for customer in sample_customers:
-                    self.tables['customers'].put_item(Item=customer)
-                logger.info(
-                    f"✅ Added {len(sample_customers)} sample customers")
+            return operation()
+        except Exception as e:
+            logger.error(f"Error in {table_name} operation: {e}")
+            return default_value
 
-            # Add sample products
-            products_count = self.tables['products'].scan(Select='COUNT')[
-                'Count']
-            if products_count == 0:
-                logger.info("🔄 Initializing sample products...")
-                sample_products = [
-                    {
-                        'product_id': 'prod_001',
-                        'product_rfid': 'RFID001',
-                        'product_name': 'Premium Coffee',
-                        'description': 'High-quality arabica coffee beans',
-                        'category': 'Beverages',
-                        'regular_price': Decimal('15.99'),
-                        'current_price': Decimal('15.99'),
-                        'vip_price': Decimal('12.79'),
-                        'weight_per_unit': Decimal('500.0'),
-                        'is_premium': True,
-                        'is_active': True,
-                        'created_at': datetime.utcnow().isoformat()
-                    },
-                    {
-                        'product_id': 'prod_002',
-                        'product_rfid': 'RFID002',
-                        'product_name': 'Energy Drink',
-                        'description': 'Popular energy drink 250ml',
-                        'category': 'Beverages',
-                        'regular_price': Decimal('3.49'),
-                        'current_price': Decimal('2.99'),
-                        'vip_price': Decimal('2.79'),
-                        'weight_per_unit': Decimal('250.0'),
-                        'is_premium': False,
-                        'is_active': True,
-                        'created_at': datetime.utcnow().isoformat()
-                    },
-                    {
-                        'product_id': 'prod_003',
-                        'product_rfid': 'RFID003',
-                        'product_name': 'Chocolate Bar',
-                        'description': 'Premium dark chocolate 70% cocoa',
-                        'category': 'Snacks',
-                        'regular_price': Decimal('4.99'),
-                        'current_price': Decimal('4.99'),
-                        'vip_price': Decimal('4.49'),
-                        'weight_per_unit': Decimal('100.0'),
-                        'is_premium': True,
-                        'is_active': True,
-                        'created_at': datetime.utcnow().isoformat()
-                    }
-                ]
+    def get_real_time_dashboard_data(self):
+        """Get comprehensive real-time dashboard data with robust error handling"""
+        logger.info("Getting real-time dashboard data...")
 
-                for product in sample_products:
-                    self.tables['products'].put_item(Item=product)
-                logger.info(f"✅ Added {len(sample_products)} sample products")
+        try:
+            # Initialize with safe defaults
+            dashboard_data = {
+                'active_sessions': [],
+                'active_customers': 0,
+                'total_sales_today': 0.0,
+                'recent_transactions': [],
+                'fraud_events': [],
+                'fraud_count': 0,
+                'system_nodes': [],
+                'online_devices': 0,
+                'total_devices': 0,
+                'system_health': 100.0
+            }
 
-            # Add sample transactions
-            transactions_count = self.tables['transactions'].scan(Select='COUNT')[
-                'Count']
-            if transactions_count == 0:
-                logger.info("🔄 Initializing sample transactions...")
-                sample_transactions = []
-                for i in range(10):
-                    transaction = {
-                        'transaction_id': f'txn_{uuid.uuid4().hex[:8]}',
-                        'session_id': f'sess_{uuid.uuid4().hex[:8]}',
-                        'user_id': f'cust_00{(i % 3) + 1}',
-                        'total_amount': Decimal(str(round(random.uniform(5.0, 50.0), 2))),
-                        'items': json.dumps([{'product_id': f'prod_00{(i % 3) + 1}', 'quantity': random.randint(1, 3)}]),
-                        'timestamp': (datetime.utcnow() - timedelta(days=random.randint(0, 30))).isoformat(),
-                        'store_id': 'store_001',
-                        'payment_method': 'card',
-                        'transaction_status': 'completed'
-                    }
-                    sample_transactions.append(transaction)
-                    self.tables['transactions'].put_item(Item=transaction)
-                logger.info(
-                    f"✅ Added {len(sample_transactions)} sample transactions")
+            # Active Sessions - with safe operation
+            def get_active_sessions():
+                response = self.tables['active_sessions'].scan(Limit=10)
+                return response.get('Items', [])
 
-            # Add sample system nodes
-            nodes_count = self.tables['system_nodes'].scan(Select='COUNT')[
-                'Count']
-            if nodes_count == 0:
-                logger.info("🔄 Initializing system nodes...")
-                sample_nodes = [
-                    {
-                        'node_id': 'cart-001',
-                        'node_type': 'smart-cart',
-                        'store_id': 'store_001',
-                        'device_identifier': 'cart-001',
-                        'location': 'Store Floor',
-                        'status': 'active',
-                        'is_online': True,
-                        'last_heartbeat': datetime.utcnow().isoformat(),
-                        'hardware_version': '2.0.0',
-                        'firmware_version': '1.5.0'
-                    },
-                    {
-                        'node_id': 'door-001',
-                        'node_type': 'door-access',
-                        'store_id': 'store_001',
-                        'device_identifier': 'door-001',
-                        'location': 'Main Entrance',
-                        'status': 'active',
-                        'is_online': True,
-                        'last_heartbeat': datetime.utcnow().isoformat(),
-                        'hardware_version': '2.0.0',
-                        'firmware_version': '1.5.0'
-                    },
-                    {
-                        'node_id': 'shelf-001',
-                        'node_type': 'smart-shelf',
-                        'store_id': 'store_001',
-                        'device_identifier': 'shelf-001',
-                        'location': 'Premium Section',
-                        'status': 'active',
-                        'is_online': True,
-                        'last_heartbeat': datetime.utcnow().isoformat(),
-                        'hardware_version': '2.0.0',
-                        'firmware_version': '1.5.0'
-                    }
-                ]
+            active_sessions = self.safe_table_operation(
+                'active_sessions',
+                get_active_sessions,
+                []
+            )
 
-                for node in sample_nodes:
-                    self.tables['system_nodes'].put_item(Item=node)
-                logger.info(f"✅ Added {len(sample_nodes)} system nodes")
+            # Recent Transactions
+            def get_recent_transactions():
+                response = self.tables['transactions'].scan(Limit=10)
+                return response.get('Items', [])
+
+            recent_transactions = self.safe_table_operation(
+                'transactions',
+                get_recent_transactions,
+                []
+            )
+
+            # Fraud Events
+            def get_fraud_events():
+                response = self.tables['fraud_events'].scan(Limit=10)
+                return response.get('Items', [])
+
+            fraud_events = self.safe_table_operation(
+                'fraud_events',
+                get_fraud_events,
+                []
+            )
+
+            # System Nodes
+            def get_system_nodes():
+                response = self.tables['system_nodes'].scan()
+                return response.get('Items', [])
+
+            system_nodes = self.safe_table_operation(
+                'system_nodes',
+                get_system_nodes,
+                []
+            )
+
+            # Calculate metrics safely
+            total_sales_today = 0.0
+            try:
+                for transaction in recent_transactions:
+                    amount = transaction.get('total_amount', 0)
+                    if isinstance(amount, Decimal):
+                        total_sales_today += float(amount)
+                    elif isinstance(amount, (int, float)):
+                        total_sales_today += amount
+            except Exception as e:
+                logger.warning(f"Error calculating sales: {e}")
+                total_sales_today = 0.0
+
+            # Count metrics
+            active_customers = len(active_sessions)
+            online_devices = len(
+                [n for n in system_nodes if n.get('is_online', False)])
+            total_devices = len(system_nodes) if system_nodes else 1
+            system_health = round(
+                (online_devices / total_devices * 100), 1) if total_devices > 0 else 100.0
+
+            # Format active sessions with duration
+            for session in active_sessions:
+                try:
+                    if session.get('entry_time'):
+                        entry_time = datetime.fromisoformat(
+                            session['entry_time'].replace('Z', '+00:00'))
+                        duration = datetime.utcnow() - entry_time.replace(tzinfo=None)
+                        session['duration'] = f"{duration.seconds // 60}m"
+                    else:
+                        session['duration'] = "0m"
+                except Exception as e:
+                    logger.warning(f"Error calculating session duration: {e}")
+                    session['duration'] = "0m"
+
+            # Update dashboard data
+            dashboard_data.update({
+                'active_sessions': active_sessions,
+                'active_customers': active_customers,
+                'total_sales_today': total_sales_today,
+                'recent_transactions': recent_transactions,
+                'fraud_events': fraud_events,
+                'fraud_count': len(fraud_events),
+                'system_nodes': system_nodes,
+                'online_devices': online_devices,
+                'total_devices': total_devices,
+                'system_health': system_health
+            })
+
+            logger.info(
+                f"Dashboard data compiled successfully: {active_customers} active customers, ${total_sales_today:.2f} sales")
+            return dashboard_data
 
         except Exception as e:
-            logger.error(f"❌ Error initializing sample data: {e}")
+            logger.error(f"Error getting dashboard data: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return self._get_fallback_dashboard()
 
-    def get_customers(self, limit=50):
-        """Get customers with proper error handling"""
-        try:
-            if not self.connected:
-                return self._get_fallback_customers()
-
-            response = self.tables['customers'].scan(Limit=limit)
+    def get_customers(self):
+        """Get all customers with enhanced error handling"""
+        def get_customers_operation():
+            response = self.tables['customers'].scan()
             customers = response.get('Items', [])
 
             # Convert Decimal to float for JSON serialization
             formatted_customers = []
             for customer in customers:
-                formatted_customers.append({
-                    'customer_id': customer.get('customer_id', ''),
-                    'customer_name': customer.get('customer_name', ''),
-                    'customer_type': customer.get('customer_type', 'REGULAR'),
-                    'rfid_card_uid': customer.get('rfid_card_uid', ''),
-                    'email': customer.get('email', ''),
-                    'phone': customer.get('phone', ''),
-                    'total_spent': float(customer.get('total_spent', 0)),
-                    'total_visits': int(customer.get('total_visits', 0)),
-                    'membership_status': customer.get('membership_status', 'ACTIVE'),
-                    'last_visit': customer.get('last_visit', datetime.utcnow().isoformat())[:10]
-                })
+                formatted_customer = {}
+                for key, value in customer.items():
+                    if isinstance(value, Decimal):
+                        formatted_customer[key] = float(value)
+                    else:
+                        formatted_customer[key] = value
+                formatted_customers.append(formatted_customer)
 
-            logger.info(f"📊 Retrieved {len(formatted_customers)} customers")
             return formatted_customers
-        except Exception as e:
-            logger.error(f"❌ Error getting customers: {e}")
-            return self._get_fallback_customers()
 
-    def get_analytics_data(self):
-        """Get comprehensive analytics data"""
+        return self.safe_table_operation('customers', get_customers_operation, [])
+
+    def get_enhanced_customer_analytics(self):
+        """Get detailed customer analytics with AI insights"""
         try:
-            if not self.connected:
-                return self._get_fallback_analytics()
+            # Customer Profiles
+            try:
+                profiles_response = self.tables['customer_profiles'].scan()
+                customer_profiles = profiles_response.get('Items', [])
+            except Exception as e:
+                logger.warning(f"Could not get customer profiles: {e}")
+                customer_profiles = []
 
-            # Get counts from all tables
-            customers_count = self.tables['customers'].scan(Select='COUNT')[
-                'Count']
-            sessions_count = self.tables['sessions'].scan(Select='COUNT')[
-                'Count']
-            fraud_count = self.tables['fraud_events'].scan(Select='COUNT')[
-                'Count']
+            # Customer Clusters
+            try:
+                clusters_response = self.tables['customer_clusters'].scan()
+                customer_clusters = clusters_response.get('Items', [])
+            except Exception as e:
+                logger.warning(f"Could not get customer clusters: {e}")
+                customer_clusters = []
 
-            # Get recent transactions for sales calculation
-            recent_transactions = self.get_recent_transactions(50)
-            total_sales = sum(float(t.get('amount', 0))
-                              for t in recent_transactions)
+            # Purchase Behavior
+            try:
+                behavior_response = self.tables['purchase_behavior'].scan()
+                purchase_behaviors = behavior_response.get('Items', [])
+            except Exception as e:
+                logger.warning(f"Could not get purchase behaviors: {e}")
+                purchase_behaviors = []
 
-            # Generate mock daily sales data (in production, this would come from aggregated data)
-            daily_sales = []
-            for i in range(7):
-                date = datetime.utcnow() - timedelta(days=6-i)
-                sales = random.uniform(800, 2000)
-                daily_sales.append({
-                    'date': date.strftime('%Y-%m-%d'),
-                    'sales': round(sales, 2)
-                })
+            # Discount Effectiveness
+            try:
+                discount_response = self.tables['discount_effectiveness'].scan(
+                )
+                discount_data = discount_response.get('Items', [])
+            except Exception as e:
+                logger.warning(f"Could not get discount data: {e}")
+                discount_data = []
 
-            analytics = {
-                'total_customers': customers_count,
-                'active_sessions': sessions_count,
-                'total_sales_today': total_sales,
-                'fraud_alerts': fraud_count,
-                'daily_sales': daily_sales,
-                'fraud_events': [
-                    {'type': 'unscanned_item', 'count': 12},
-                    {'type': 'weight_mismatch', 'count': 8},
-                    {'type': 'multiple_items', 'count': 5},
-                    {'type': 'no_placement', 'count': 15}
-                ]
+            return {
+                'customer_profiles': customer_profiles,
+                'customer_clusters': customer_clusters,
+                'purchase_behaviors': purchase_behaviors,
+                'discount_effectiveness': discount_data,
+                'cluster_count': len(customer_clusters),
+                'profiled_customers': len(customer_profiles),
+                'total_sales_today': 0  # Add this for analytics template
             }
 
-            logger.info(
-                f"📈 Analytics: {customers_count} customers, {sessions_count} sessions, ${total_sales:.2f} sales")
-            return analytics
         except Exception as e:
-            logger.error(f"❌ Error getting analytics: {e}")
-            return self._get_fallback_analytics()
+            logger.error(f"Error getting customer analytics: {e}")
+            return {
+                'customer_profiles': [],
+                'customer_clusters': [],
+                'purchase_behaviors': [],
+                'discount_effectiveness': [],
+                'cluster_count': 0,
+                'profiled_customers': 0,
+                'total_sales_today': 0
+            }
 
-    def get_recent_transactions(self, limit=10):
-        """Get recent transactions"""
+    def get_fraud_monitoring_data(self):
+        """Get comprehensive fraud monitoring data"""
         try:
-            if not self.connected:
-                return self._get_fallback_transactions()
+            fraud_response = self.tables['fraud_events'].scan()
+            fraud_events = fraud_response.get('Items', [])
 
-            response = self.tables['transactions'].scan(Limit=limit)
-            transactions = response.get('Items', [])
-
-            # Sort by timestamp (most recent first)
-            transactions.sort(key=lambda x: x.get(
+            # Sort by timestamp
+            fraud_events.sort(key=lambda x: x.get(
                 'timestamp', ''), reverse=True)
 
-            formatted_transactions = []
-            for txn in transactions[:limit]:
-                # Parse items JSON
-                items_str = txn.get('items', '[]')
-                try:
-                    items = json.loads(items_str) if items_str else []
-                except:
-                    items = []
+            # Categorize by severity and type
+            fraud_by_type = {}
+            fraud_by_severity = {}
 
-                formatted_transactions.append({
-                    'transaction_id': txn.get('transaction_id', ''),
-                    'customer_name': f"Customer {txn.get('user_id', 'Unknown')[-3:]}",
-                    'amount': float(txn.get('total_amount', 0)),
-                    'items': len(items),
-                    'timestamp': txn.get('timestamp', datetime.utcnow().isoformat()),
-                    'status': txn.get('transaction_status', 'completed')
+            for event in fraud_events:
+                event_type = event.get('fraud_type', 'unknown')
+                severity = event.get('severity', 'medium')
+
+                fraud_by_type[event_type] = fraud_by_type.get(
+                    event_type, 0) + 1
+                fraud_by_severity[severity] = fraud_by_severity.get(
+                    severity, 0) + 1
+
+                # Format for display
+                event['event_type'] = event_type.replace('_', ' ').title()
+                event['auto_resolved'] = False
+
+            return {
+                'events': fraud_events,
+                'fraud_by_type': fraud_by_type,
+                'fraud_by_severity': fraud_by_severity,
+                'total_events': len(fraud_events),
+                'high_severity': fraud_by_severity.get('high', 0) + fraud_by_severity.get('critical', 0)
+            }
+
+        except Exception as e:
+            logger.error(f"Error getting fraud data: {e}")
+            return {'events': [], 'fraud_by_type': {}, 'fraud_by_severity': {}, 'total_events': 0, 'high_severity': 0}
+
+    def get_inventory_data(self):
+        """Get inventory and product data"""
+        try:
+            products_response = self.tables['products'].scan()
+            products = products_response.get('Items', [])
+
+            formatted_products = []
+            for product in products:
+                formatted_products.append({
+                    'product_id': product.get('product_id', ''),
+                    'product_name': product.get('product_name', ''),
+                    'category': product.get('category', ''),
+                    'regular_price': float(product.get('regular_price', 0)),
+                    'current_price': float(product.get('current_price', 0)),
+                    'vip_price': float(product.get('vip_price', 0)),
+                    'inventory_level': product.get('inventory_level', 0),
+                    'reorder_threshold': product.get('reorder_threshold', 0),
+                    'is_active': product.get('is_active', True),
+                    'is_premium': product.get('is_premium', False),
+                    'product_rfid': product.get('product_rfid', ''),
+                    'description': product.get('description', ''),
+                    'weight_per_unit': product.get('weight_per_unit', 0),
+                    'discount_eligible': product.get('discount_eligible', True),
+                    'needs_reorder': product.get('inventory_level', 0) <= product.get('reorder_threshold', 0)
                 })
 
-            logger.info(
-                f"💳 Retrieved {len(formatted_transactions)} recent transactions")
-            return formatted_transactions
+            return formatted_products
+
         except Exception as e:
-            logger.error(f"❌ Error getting transactions: {e}")
-            return self._get_fallback_transactions()
+            logger.error(f"Error getting inventory data: {e}")
+            return []
 
-    def get_stores_data(self):
-        """Get stores data from system nodes"""
+    def get_system_monitoring_data(self):
+        """Get detailed system monitoring data"""
         try:
-            if not self.connected:
-                return self._get_fallback_stores()
+            nodes_response = self.tables['system_nodes'].scan()
+            system_nodes = nodes_response.get('Items', [])
 
-            # Get system nodes to understand store layout
-            response = self.tables['system_nodes'].scan()
-            nodes = response.get('Items', [])
-
-            # Group by store_id
-            stores = {}
-            for node in nodes:
-                store_id = node.get('store_id', 'store_001')
-                if store_id not in stores:
-                    stores[store_id] = {
-                        'store_id': store_id,
-                        'store_name': f'IoT Store {store_id[-3:].upper()}',
-                        'location': 'Main Campus, Building A',
-                        'status': 'ACTIVE',
-                        'devices': {
-                            'smart_carts': 0,
-                            'door_access': 0,
-                            'smart_shelves': 0
-                        },
-                        'daily_revenue': random.uniform(2000, 3000),
-                        'customer_count': random.randint(80, 120)
-                    }
-
-                node_type = node.get('node_type', '')
-                if 'cart' in node_type:
-                    stores[store_id]['devices']['smart_carts'] += 1
-                elif 'door' in node_type:
-                    stores[store_id]['devices']['door_access'] += 1
-                elif 'shelf' in node_type:
-                    stores[store_id]['devices']['smart_shelves'] += 1
-
-            store_list = list(stores.values())
-            logger.info(f"🏪 Retrieved {len(store_list)} stores")
-            return store_list
-        except Exception as e:
-            logger.error(f"❌ Error getting stores: {e}")
-            return self._get_fallback_stores()
-
-    def create_customer(self, customer_data):
-        """Create new customer in DynamoDB"""
-        try:
-            if not self.connected:
+            try:
+                sessions_response = self.tables['active_sessions'].scan()
+                active_sessions = sessions_response.get('Items', [])
+            except Exception as e:
                 logger.warning(
-                    "⚠️ DynamoDB not connected, cannot create customer")
-                return False
+                    f"Could not get active sessions for monitoring: {e}")
+                active_sessions = []
 
-            # Generate customer ID
-            customer_id = f"cust_{uuid.uuid4().hex[:8]}"
+            # Add session info to nodes
+            session_by_cart = {s.get('assigned_cart')                               : s for s in active_sessions}
 
-            # Prepare customer record
-            customer_record = {
-                'customer_id': customer_id,
-                'customer_name': customer_data.get('name', ''),
-                'customer_type': customer_data.get('type', 'REGULAR'),
-                'rfid_card_uid': customer_data.get('rfid_uid', ''),
-                'email': customer_data.get('email', ''),
-                'phone': customer_data.get('phone', ''),
-                'total_spent': Decimal('0.0'),
-                'total_visits': 0,
-                'membership_status': 'ACTIVE',
-                'created_at': datetime.utcnow().isoformat(),
-                'last_visit': datetime.utcnow().isoformat()
+            for node in system_nodes:
+                node_id = node.get('node_id', '')
+                if node_id in session_by_cart:
+                    session = session_by_cart[node_id]
+                    node['current_session_id'] = session.get('session_id', '')
+                    node['current_customer'] = session.get('customer_name', '')
+                    node['total_sessions_today'] = 1
+
+            return {
+                'nodes': system_nodes,
+                'active_sessions': active_sessions,
+                'device_utilization': len(active_sessions)
             }
 
-            self.tables['customers'].put_item(Item=customer_record)
-            logger.info(f"✅ Created customer: {customer_id}")
+        except Exception as e:
+            logger.error(f"Error getting system monitoring data: {e}")
+            return {'nodes': [], 'active_sessions': [], 'device_utilization': 0}
+
+    def assign_rfid_to_customer(self, customer_id, rfid_uid):
+        """Assign RFID card to customer (admin function)"""
+        try:
+            self.tables['customers'].update_item(
+                Key={'customer_id': customer_id},
+                UpdateExpression='SET rfid_card_uid = :rfid, membership_status = :status, updated_at = :updated',
+                ExpressionAttributeValues={
+                    ':rfid': rfid_uid,
+                    ':status': 'ACTIVE',
+                    ':updated': datetime.utcnow().isoformat()
+                }
+            )
+            logger.info(
+                f"✅ Assigned RFID {rfid_uid} to customer {customer_id}")
             return True
         except Exception as e:
-            logger.error(f"❌ Error creating customer: {e}")
+            logger.error(f"Error assigning RFID: {e}")
             return False
 
-    # Fallback methods for when DynamoDB is not available
-    def _get_fallback_customers(self):
-        return [
-            {
-                'customer_id': 'cust_001',
-                'customer_name': 'John Doe (Fallback)',
-                'customer_type': 'VIP',
-                'rfid_card_uid': 'ABC123456789',
-                'email': 'john.doe@fallback.edu',
-                'phone': '+1234567890',
-                'total_spent': 1250.75,
-                'total_visits': 45,
-                'membership_status': 'ACTIVE',
-                'last_visit': '2024-05-31'
+    def send_device_command(self, device_id, command):
+        """Send command to IoT device"""
+        try:
+            topic = f'store/devices/{device_id}/commands'
+            message = {
+                'command': command,
+                'timestamp': datetime.utcnow().isoformat(),
+                'sent_by': 'admin_ui'
             }
-        ]
 
-    def _get_fallback_analytics(self):
+            self.iot_client.publish(
+                topic=topic,
+                qos=1,
+                payload=json.dumps(message)
+            )
+            logger.info(f"✅ Sent {command} to {device_id}")
+            return True
+        except Exception as e:
+            logger.error(f"Error sending device command: {e}")
+            return False
+
+    def _get_fallback_dashboard(self):
+        """Fallback dashboard data when database is unavailable"""
+        logger.warning("Using fallback dashboard data")
         return {
-            'total_customers': 3,
-            'active_sessions': 1,
-            'total_sales_today': 247.50,
-            'fraud_alerts': 2,
-            'daily_sales': [
-                {'date': '2024-05-25', 'sales': 1680.25},
-                {'date': '2024-05-26', 'sales': 1234.00},
-                {'date': '2024-05-27', 'sales': 1890.30},
-                {'date': '2024-05-28', 'sales': 2147.80},
-                {'date': '2024-05-29', 'sales': 1847.50},
-                {'date': '2024-05-30', 'sales': 2247.50},
-                {'date': '2024-05-31', 'sales': 1847.50}
-            ],
-            'fraud_events': [
-                {'type': 'unscanned_item', 'count': 5},
-                {'type': 'weight_mismatch', 'count': 3}
-            ]
+            'active_sessions': [],
+            'active_customers': 0,
+            'total_sales_today': 0.0,
+            'recent_transactions': [],
+            'fraud_events': [],
+            'fraud_count': 0,
+            'system_nodes': [],
+            'online_devices': 0,
+            'total_devices': 1,
+            'system_health': 100.0
         }
 
-    def _get_fallback_transactions(self):
-        return [
-            {
-                'transaction_id': 'txn_fallback_001',
-                'customer_name': 'Customer 001',
-                'amount': 45.67,
-                'items': 3,
-                'timestamp': '2024-05-31T15:30:00Z',
-                'status': 'completed'
-            }
-        ]
 
-    def _get_fallback_stores(self):
-        return [{
-            'store_id': 'store_001',
-            'store_name': 'Main Campus Store (Fallback)',
-            'location': 'Building A, Floor 1',
-            'status': 'ACTIVE',
-            'devices': {'smart_carts': 1, 'door_access': 1, 'smart_shelves': 1},
-            'daily_revenue': 2847.50,
-            'customer_count': 89
-        }]
+# Initialize enhanced client
+db_client = EnhancedDynamoDBClient()
+
+# Authentication decorator
 
 
-# Initialize DynamoDB client
-db_client = DynamoDBClient()
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('is_admin'):
+            logger.warning(
+                f"Unauthorized access attempt to {request.endpoint}")
+            return redirect(url_for('admin_login'))
+        return f(*args, **kwargs)
+    return decorated_function
 
-# Routes
+# === ADMIN ROUTES ===
 
 
 @app.route('/')
-def dashboard():
-    """Main dashboard"""
+def index():
+    """Root route - redirect to admin login"""
+    return redirect(url_for('admin_login'))
+
+
+@app.route('/admin')
+def admin_redirect():
+    """Admin route - redirect to dashboard if logged in, otherwise login"""
+    if session.get('is_admin'):
+        return redirect(url_for('admin_dashboard'))
+    return redirect(url_for('admin_login'))
+
+
+@app.route('/admin/login')
+def admin_login():
+    """Admin login page"""
+    if session.get('is_admin'):
+        return redirect(url_for('admin_dashboard'))
+    return render_template('admin/login.html')
+
+
+@app.route('/admin/login', methods=['POST'])
+def admin_login_post():
+    """Process admin login"""
     try:
-        analytics = db_client.get_analytics_data()
-        recent_transactions = db_client.get_recent_transactions()
-        return render_template('dashboard.html',
-                               analytics=analytics,
-                               recent_transactions=recent_transactions)
+        username = request.form.get('username')
+        password = request.form.get('password')
+
+        logger.info(f"Login attempt for user: {username}")
+
+        # Simple auth - replace with proper authentication
+        if username == 'admin' and password == 'admin123':
+            session['is_admin'] = True
+            session['admin_user'] = username
+            logger.info(f"Successful login for user: {username}")
+            flash('Welcome to IoT Store Admin Portal', 'success')
+            return redirect(url_for('admin_dashboard'))
+        else:
+            logger.warning(f"Failed login attempt for user: {username}")
+            flash('Invalid credentials', 'error')
+            return redirect(url_for('admin_login'))
     except Exception as e:
-        logger.error(f"❌ Dashboard error: {e}")
-        return f"Error loading dashboard: {str(e)}", 500
+        logger.error(f"Login error: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        flash('Login error occurred', 'error')
+        return redirect(url_for('admin_login'))
 
 
-@app.route('/users')
-def users():
-    """User management"""
+@app.route('/admin/logout')
+def admin_logout():
+    """Admin logout"""
+    user = session.get('admin_user', 'Unknown')
+    session.clear()
+    logger.info(f"User {user} logged out")
+    flash('Logged out successfully', 'info')
+    return redirect(url_for('admin_login'))
+
+
+@app.route('/admin/dashboard')
+@admin_required
+def admin_dashboard():
+    """Enhanced admin dashboard with comprehensive error handling"""
     try:
+        logger.info("Loading admin dashboard...")
+
+        # Check database connection
+        if not db_client.connected:
+            logger.error("Database not connected - using fallback data")
+            flash('Database connection unavailable - showing limited data', 'warning')
+            dashboard_data = db_client._get_fallback_dashboard()
+        else:
+            dashboard_data = db_client.get_real_time_dashboard_data()
+
+        logger.info("Dashboard data loaded successfully")
+        return render_template('admin/dashboard.html', data=dashboard_data)
+
+    except Exception as e:
+        logger.error(f"Dashboard error: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        flash('Error loading dashboard data - showing fallback view', 'error')
+
+        # Return with fallback data
+        fallback_data = db_client._get_fallback_dashboard()
+        return render_template('admin/dashboard.html', data=fallback_data)
+
+
+@app.route('/admin/customers')
+@admin_required
+def admin_customers():
+    """Enhanced customer management with analytics data"""
+    try:
+        # Get customers data
         customers = db_client.get_customers()
-        return render_template('users.html', customers=customers)
+
+        # Get analytics data for the template
+        analytics_data = db_client.get_enhanced_customer_analytics()
+
+        # Add default values if analytics data is missing
+        if not analytics_data:
+            analytics_data = {
+                'profiled_customers': 0,
+                'customer_clusters': [],
+                'customer_profiles': [],
+                'cluster_count': 0
+            }
+
+        logger.info(
+            f"Loading customers page with {len(customers)} customers and {analytics_data.get('profiled_customers', 0)} profiles")
+
+        return render_template('admin/customers.html',
+                               customers=customers,
+                               analytics=analytics_data)
+
     except Exception as e:
-        logger.error(f"❌ Users page error: {e}")
-        return f"Error loading users: {str(e)}", 500
+        logger.error(f"Customers error: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        flash('Error loading customer data', 'error')
 
+        # Return with minimal data to prevent template errors
+        return render_template('admin/customers.html',
+                               customers=[],
+                               analytics={
+                                   'profiled_customers': 0,
+                                   'customer_clusters': [],
+                                   'customer_profiles': [],
+                                   'cluster_count': 0
+                               })
 
-@app.route('/analytics')
-def analytics():
-    """Analytics page"""
+@app.route('/admin/fraud')
+@admin_required
+def admin_fraud():
+    """Fraud monitoring dashboard"""
     try:
-        analytics_data = db_client.get_analytics_data()
-        return render_template('analytics.html', analytics=analytics_data)
+        fraud_data = db_client.get_fraud_monitoring_data()
+        return render_template('admin/fraud_events.html', **fraud_data)
     except Exception as e:
-        logger.error(f"❌ Analytics error: {e}")
-        return f"Error loading analytics: {str(e)}", 500
+        logger.error(f"Fraud monitoring error: {e}")
+        flash('Error loading fraud data', 'error')
+        return render_template('admin/fraud_events.html', events=[])
 
 
-@app.route('/stores')
-def stores():
-    """Stores management"""
+@app.route('/admin/inventory')
+@admin_required
+def admin_inventory():
+    """Inventory management"""
     try:
-        stores_data = db_client.get_stores_data()
-        return render_template('stores.html', stores=stores_data)
+        products = db_client.get_inventory_data()
+        return render_template('admin/inventory.html', products=products)
     except Exception as e:
-        logger.error(f"❌ Stores error: {e}")
-        return f"Error loading stores: {str(e)}", 500
+        logger.error(f"Inventory error: {e}")
+        flash('Error loading inventory data', 'error')
+        return render_template('admin/inventory.html', products=[])
 
 
-@app.route('/register-card')
-def register_card():
+@app.route('/admin/system')
+@admin_required
+def admin_system():
+    """System monitoring"""
+    try:
+        system_data = db_client.get_system_monitoring_data()
+        return render_template('admin/system_status.html', **system_data)
+    except Exception as e:
+        logger.error(f"System monitoring error: {e}")
+        flash('Error loading system data', 'error')
+        return render_template('admin/system_status.html', nodes=[])
+
+
+@app.route('/admin/analytics')
+@admin_required
+def admin_analytics():
+    """Advanced analytics"""
+    try:
+        analytics_data = db_client.get_enhanced_customer_analytics()
+        dashboard_data = db_client.get_real_time_dashboard_data()
+        combined_data = {**analytics_data, **dashboard_data}
+        return render_template('admin/analytics.html', analytics=combined_data)
+    except Exception as e:
+        logger.error(f"Analytics error: {e}")
+        flash('Error loading analytics data', 'error')
+        return render_template('admin/analytics.html', analytics={'total_sales_today': 0, 'customer_profiles': [], 'customer_clusters': [], 'discount_effectiveness': []})
+
+
+@app.route('/admin/transactions')
+@admin_required
+def admin_transactions():
+    """Transaction management"""
+    try:
+        # Get recent transactions
+        transactions_response = db_client.tables['transactions'].scan()
+        transactions = transactions_response.get('Items', [])
+
+        # Sort by timestamp
+        transactions.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+
+        return render_template('admin/transactions.html', transactions=transactions)
+    except Exception as e:
+        logger.error(f"Transactions error: {e}")
+        flash('Error loading transaction data', 'error')
+        return render_template('admin/transactions.html', transactions=[])
+
+
+@app.route('/admin/register-card')
+@admin_required
+def admin_register_card():
     """RFID card registration"""
     try:
-        return render_template('register_card.html')
+        # Get pending customers (those without RFID cards)
+        customers_response = db_client.tables['customers'].scan()
+        all_customers = customers_response.get('Items', [])
+
+        # Filter for pending customers
+        pending_customers = []
+        for customer in all_customers:
+            if not customer.get('rfid_card_uid') or customer.get('membership_status') == 'PENDING':
+                pending_customers.append(customer)
+
+        return render_template('admin/register_card.html', pending_customers=pending_customers)
     except Exception as e:
-        logger.error(f"❌ Register card page error: {e}")
-        return f"Error loading register card: {str(e)}", 500
+        logger.error(f"Register card error: {e}")
+        flash('Error loading registration page', 'error')
+        return render_template('admin/register_card.html', pending_customers=[])
 
-# API Routes
+# === API ROUTES ===
 
 
-@app.route('/api/register-card', methods=['POST'])
-def api_register_card():
-    """Register new RFID card"""
+@app.route('/api/admin/assign-rfid', methods=['POST'])
+@admin_required
+def api_assign_rfid():
+    """Assign RFID card to customer"""
     try:
         data = request.get_json()
-        logger.info(f"🔄 Registering card for: {data.get('name', 'Unknown')}")
+        customer_id = data.get('customer_id')
+        rfid_uid = data.get('rfid_uid')
 
-        # Generate RFID UID if not provided
-        rfid_uid = data.get('rfid_uid') or ''.join(
-            random.choices(string.ascii_uppercase + string.digits, k=10))
+        success = db_client.assign_rfid_to_customer(customer_id, rfid_uid)
 
-        customer_data = {
-            'name': data.get('name', ''),
-            'type': data.get('type', 'REGULAR'),
-            'email': data.get('email', ''),
-            'phone': data.get('phone', ''),
-            'rfid_uid': rfid_uid
-        }
-
-        success = db_client.create_customer(customer_data)
-
-        if success:
-            logger.info(f"✅ Card registered successfully: {rfid_uid}")
-            return jsonify({
-                'success': True,
-                'message': 'Card registered successfully!',
-                'rfid_uid': rfid_uid
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'message': 'Error saving to database'
-            }), 500
+        return jsonify({
+            'success': success,
+            'message': 'RFID assigned successfully' if success else 'Failed to assign RFID'
+        })
 
     except Exception as e:
-        logger.error(f"❌ Register card error: {e}")
+        logger.error(f"RFID assignment error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/admin/device-command', methods=['POST'])
+@admin_required
+def api_device_command():
+    """Send command to IoT device"""
+    try:
+        data = request.get_json()
+        device_id = data.get('device_id')
+        command = data.get('command')
+
+        success = db_client.send_device_command(device_id, command)
+
         return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
+            'success': success,
+            'message': f'Command {command} sent to {device_id}' if success else 'Failed to send command'
+        })
+
+    except Exception as e:
+        logger.error(f"Device command error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 
 @app.route('/api/simulate-rfid-scan')
@@ -638,73 +812,84 @@ def simulate_rfid_scan():
     try:
         rfid_uid = ''.join(random.choices(
             string.ascii_uppercase + string.digits, k=10))
-        logger.info(f"📡 Simulated RFID scan: {rfid_uid}")
-
         return jsonify({
             'rfid_uid': rfid_uid,
             'scan_time': datetime.utcnow().isoformat()
         })
     except Exception as e:
-        logger.error(f"❌ RFID scan simulation error: {e}")
-        return jsonify({
-            'success': False,
-            'message': f'Error: {str(e)}'
-        }), 500
+        logger.error(f"RFID simulation error: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 
-@app.route('/api/status')
-def api_status():
-    """System status API"""
-    return jsonify({
-        'status': 'running',
-        'timestamp': datetime.utcnow().isoformat(),
-        'aws_region': app.config['AWS_REGION'],
-        'database_connected': db_client.connected,
-        'tables_configured': len(db_client.tables) if db_client.connected else 0,
-        'version': '2.1.0',
-        'tables': list(db_client.tables.keys()) if db_client.connected else []
-    })
+@app.route('/api/dashboard/realtime')
+def api_dashboard_realtime():
+    """Get real-time dashboard data"""
+    try:
+        data = db_client.get_real_time_dashboard_data()
+        return jsonify(data)
+    except Exception as e:
+        logger.error(f"Real-time API error: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/health')
 def health_check():
-    """Health check endpoint"""
-    return jsonify({
-        'status': 'healthy',
-        'timestamp': datetime.utcnow().isoformat(),
-        'database': 'connected' if db_client.connected else 'disconnected'
-    })
-
-
-@app.route('/api/customers')
-def api_customers():
-    """API endpoint for customers data"""
+    """Enhanced health check endpoint"""
     try:
-        customers = db_client.get_customers()
-        return jsonify({
-            'customers': customers,
-            'count': len(customers)
-        })
+        health_data = {
+            'status': 'healthy',
+            'timestamp': datetime.utcnow().isoformat(),
+            'database': 'connected' if db_client.connected else 'disconnected',
+            'aws_region': app.config['AWS_REGION'],
+            'tables_available': len([t for t in db_client.tables.values() if t is not None])
+        }
+
+        # Test a simple database operation
+        if db_client.connected and db_client.tables.get('customers'):
+            try:
+                db_client.tables['customers'].load()
+                health_data['database_test'] = 'passed'
+            except Exception as e:
+                health_data['database_test'] = f'failed: {str(e)}'
+
+        return jsonify(health_data)
     except Exception as e:
-        logger.error(f"❌ API customers error: {e}")
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Health check error: {e}")
+        return jsonify({
+            'status': 'unhealthy',
+            'error': str(e),
+            'timestamp': datetime.utcnow().isoformat()
+        }), 500
+
+# Error handlers
+
+
+@app.errorhandler(404)
+def not_found_error(error):
+    logger.warning(f"404 error: {request.url}")
+    return render_template('admin/login.html'), 404
+
+
+@app.errorhandler(500)
+def internal_error(error):
+    logger.error(f"Internal server error: {error}")
+    logger.error(f"Traceback: {traceback.format_exc()}")
+    return jsonify({'error': 'Internal server error', 'details': str(error)}), 500
 
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     debug_mode = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
 
-    logger.info("🚀 Starting IoT Store Admin UI...")
+    logger.info("🚀 Starting Enhanced IoT Store Admin Portal...")
     logger.info(f"📍 Port: {port}")
     logger.info(f"🗄️ Database Connected: {db_client.connected}")
     logger.info(f"🌍 AWS Region: {app.config['AWS_REGION']}")
-    logger.info(f"🔧 Debug Mode: {debug_mode}")
     logger.info(
-        f"📊 Tables: {list(app.config.keys()) if hasattr(app.config, 'keys') else 'Config loading...'}")
+        f"📊 Tables Available: {len([t for t in db_client.tables.values() if t is not None])}")
 
     if debug_mode:
-        logger.info("📍 Development mode - Access at: http://127.0.0.1:5000")
         app.run(debug=True, host='127.0.0.1', port=port)
     else:
-        logger.info("📍 Production mode - binding to 0.0.0.0")
         app.run(debug=False, host='0.0.0.0', port=port)

@@ -1,0 +1,484 @@
+
+<!-- templates/admin/register_card.html -->
+{% extends "admin/base.html" %}
+
+{% block title %}RFID Card Registration - IoT Store Admin{% endblock %}
+{% block page_title %}RFID Card Registration{% endblock %}
+{% block page_subtitle %}Assign RFID cards to customer accounts{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group" role="group">
+    <button type="button" class="btn btn-outline-primary" onclick="refreshPendingCustomers()">
+        <i class="fas fa-sync-alt"></i> Refresh
+    </button>
+    <button type="button" class="btn btn-outline-info" onclick="viewAssignmentHistory()">
+        <i class="fas fa-history"></i> Assignment History
+    </button>
+    <button type="button" class="btn btn-outline-warning" onclick="bulkAssignment()">
+        <i class="fas fa-id-card"></i> Bulk Assignment
+    </button>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Instructions -->
+<div class="alert alert-info mb-4">
+    <div class="d-flex align-items-start">
+        <i class="fas fa-info-circle fa-2x me-3 mt-1"></i>
+        <div>
+            <h5 class="alert-heading">RFID Card Assignment Process</h5>
+            <ol class="mb-0">
+                <li>Customers register online and receive a <strong>PENDING</strong> status</li>
+                <li>Use the door's RFID reader to scan a new card</li>
+                <li>Assign the scanned card to a pending customer</li>
+                <li>Customer status becomes <strong>ACTIVE</strong> and they can start shopping</li>
+            </ol>
+        </div>
+    </div>
+</div>
+
+<!-- RFID Scanner Section -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card border-primary">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-wifi me-2"></i>
+                    RFID Card Scanner
+                </h5>
+            </div>
+            <div class="card-body text-center">
+                <div class="scanner-status mb-3" id="scannerStatus">
+                    <i class="fas fa-wifi fa-3x text-muted mb-3"></i>
+                    <p class="text-muted">Ready to scan RFID cards</p>
+                </div>
+                
+                <div class="d-grid gap-2">
+                    <button type="button" class="btn btn-primary btn-lg" id="scanButton" onclick="scanRFIDCard()">
+                        <i class="fas fa-wifi me-2"></i>
+                        Scan RFID Card
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" onclick="manualEntry()">
+                        <i class="fas fa-keyboard me-2"></i>
+                        Manual Entry
+                    </button>
+                </div>
+                
+                <!-- Scanned Card Display -->
+                <div class="mt-3" id="scannedCardDisplay" style="display: none;">
+                    <div class="alert alert-success">
+                        <h6 class="mb-2">Card Scanned Successfully!</h6>
+                        <div class="fw-bold">RFID UID: <code id="scannedRfidUid"></code></div>
+                        <small class="text-muted" id="scanTime"></small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">
+                    <i class="fas fa-users me-2"></i>
+                    Pending Customers
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if pending_customers %}
+                <p class="text-muted mb-3">{{ pending_customers|length }} customers waiting for RFID cards</p>
+                <div class="list-group" style="max-height: 300px; overflow-y: auto;">
+                    {% for customer in pending_customers[:5] %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="fw-bold">{{ customer.customer_name or 'Unknown' }}</div>
+                            <small class="text-muted">{{ customer.email or 'No email' }}</small>
+                        </div>
+                        <span class="badge bg-warning">Pending</span>
+                    </div>
+                    {% endfor %}
+                    {% if pending_customers|length > 5 %}
+                    <div class="list-group-item text-center text-muted">
+                        ... and {{ pending_customers|length - 5 }} more
+                    </div>
+                    {% endif %}
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                    <h6>No Pending Customers</h6>
+                    <p class="text-muted">All customers have been assigned RFID cards</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Customer Assignment -->
+<div class="card" id="assignmentSection" style="display: none;">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="fas fa-user-tag me-2"></i>
+            Assign Card to Customer
+        </h5>
+    </div>
+    <div class="card-body">
+        <form id="cardAssignmentForm">
+            <input type="hidden" id="assignRfidUid">
+            
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">RFID Card UID</label>
+                    <input type="text" class="form-control" id="displayRfidUid" readonly>
+                </div>
+                
+                <div class="col-md-6">
+                    <label class="form-label">Select Customer *</label>
+                    <select class="form-select" id="customerSelect" required>
+                        <option value="">Choose a customer...</option>
+                        {% for customer in pending_customers %}
+                        <option value="{{ customer.customer_id }}" 
+                                data-name="{{ customer.customer_name }}" 
+                                data-email="{{ customer.email }}">
+                            {{ customer.customer_name }} ({{ customer.email }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="col-12" id="customerPreview" style="display: none;">
+                    <div class="card bg-light">
+                        <div class="card-body">
+                            <h6>Customer Details</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <strong>Name:</strong> <span id="previewName"></span><br>
+                                    <strong>Email:</strong> <span id="previewEmail"></span>
+                                </div>
+                                <div class="col-md-6">
+                                    <strong>Status:</strong> <span class="badge bg-warning">Pending</span><br>
+                                    <strong>Registration:</strong> <span id="previewDate"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-12">
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-success" onclick="confirmAssignment()">
+                            <i class="fas fa-check me-2"></i>
+                            Assign Card to Customer
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="cancelAssignment()">
+                            <i class="fas fa-times me-2"></i>
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Recent Assignments -->
+<div class="card mt-4">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="fas fa-clock me-2"></i>
+            Recent Card Assignments
+        </h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Customer</th>
+                        <th>RFID Card</th>
+                        <th>Assigned By</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Sample recent assignments -->
+                    <tr>
+                        <td><small>2024-06-04 14:30</small></td>
+                        <td>
+                            <div>
+                                <div class="fw-bold">John Smith</div>
+                                <small class="text-muted">john.smith@email.com</small>
+                            </div>
+                        </td>
+                        <td><code>ABC123456789</code></td>
+                        <td>{{ session.get('admin_user', 'Admin') }}</td>
+                        <td><span class="badge bg-success">Active</span></td>
+                    </tr>
+                    <tr>
+                        <td><small>2024-06-04 13:45</small></td>
+                        <td>
+                            <div>
+                                <div class="fw-bold">Sarah Johnson</div>
+                                <small class="text-muted">sarah.j@email.com</small>
+                            </div>
+                        </td>
+                        <td><code>DEF987654321</code></td>
+                        <td>{{ session.get('admin_user', 'Admin') }}</td>
+                        <td><span class="badge bg-success">Active</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Manual Entry Modal -->
+<div class="modal fade" id="manualEntryModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Manual RFID Entry</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="manualEntryForm">
+                    <div class="mb-3">
+                        <label class="form-label">RFID Card UID</label>
+                        <input type="text" class="form-control" id="manualRfidInput" 
+                               placeholder="Enter RFID UID manually" required>
+                        <div class="form-text">Enter the RFID UID found on the card or from another scanner</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="submitManualEntry()">
+                    <i class="fas fa-check me-2"></i>Use This UID
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentRfidUid = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize customer select change handler
+    document.getElementById('customerSelect').addEventListener('change', function() {
+        const selectedOption = this.options[this.selectedIndex];
+        const preview = document.getElementById('customerPreview');
+        
+        if (this.value) {
+            document.getElementById('previewName').textContent = selectedOption.dataset.name || 'Unknown';
+            document.getElementById('previewEmail').textContent = selectedOption.dataset.email || 'No email';
+            document.getElementById('previewDate').textContent = new Date().toLocaleDateString();
+            preview.style.display = 'block';
+        } else {
+            preview.style.display = 'none';
+        }
+    });
+});
+
+function scanRFIDCard() {
+    const scanButton = document.getElementById('scanButton');
+    const scannerStatus = document.getElementById('scannerStatus');
+    
+    // Show scanning state
+    scanButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Scanning...';
+    scanButton.disabled = true;
+    
+    scannerStatus.innerHTML = `
+        <i class="fas fa-wifi fa-3x text-primary mb-3 fa-pulse"></i>
+        <p class="text-primary">Scanning for RFID card...</p>
+    `;
+    
+    // Simulate RFID scan
+    fetch('/api/simulate-rfid-scan')
+        .then(response => response.json())
+        .then(data => {
+            currentRfidUid = data.rfid_uid;
+            
+            // Show scanned card
+            document.getElementById('scannedRfidUid').textContent = data.rfid_uid;
+            document.getElementById('scanTime').textContent = `Scanned at ${new Date().toLocaleTimeString()}`;
+            document.getElementById('scannedCardDisplay').style.display = 'block';
+            
+            // Update assignment form
+            document.getElementById('assignRfidUid').value = data.rfid_uid;
+            document.getElementById('displayRfidUid').value = data.rfid_uid;
+            document.getElementById('assignmentSection').style.display = 'block';
+            
+            // Update scanner status
+            scannerStatus.innerHTML = `
+                <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                <p class="text-success">Card scanned successfully!</p>
+            `;
+            
+            showNotification('RFID card scanned successfully!', 'success');
+        })
+        .catch(error => {
+            console.error('Scan error:', error);
+            scannerStatus.innerHTML = `
+                <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
+                <p class="text-danger">Scan failed. Please try again.</p>
+            `;
+            showNotification('Error scanning RFID card', 'error');
+        })
+        .finally(() => {
+            scanButton.innerHTML = '<i class="fas fa-wifi me-2"></i>Scan Another Card';
+            scanButton.disabled = false;
+        });
+}
+
+function manualEntry() {
+    const modal = new bootstrap.Modal(document.getElementById('manualEntryModal'));
+    modal.show();
+}
+
+function submitManualEntry() {
+    const manualRfidInput = document.getElementById('manualRfidInput');
+    const rfidUid = manualRfidInput.value.trim();
+    
+    if (!rfidUid) {
+        showNotification('Please enter a valid RFID UID', 'error');
+        return;
+    }
+    
+    currentRfidUid = rfidUid;
+    
+    // Update display
+    document.getElementById('scannedRfidUid').textContent = rfidUid;
+    document.getElementById('scanTime').textContent = `Entered manually at ${new Date().toLocaleTimeString()}`;
+    document.getElementById('scannedCardDisplay').style.display = 'block';
+    
+    // Update assignment form
+    document.getElementById('assignRfidUid').value = rfidUid;
+    document.getElementById('displayRfidUid').value = rfidUid;
+    document.getElementById('assignmentSection').style.display = 'block';
+    
+    // Close modal
+    bootstrap.Modal.getInstance(document.getElementById('manualEntryModal')).hide();
+    manualRfidInput.value = '';
+    
+    showNotification('RFID UID entered successfully', 'success');
+}
+
+function confirmAssignment() {
+    const customerId = document.getElementById('customerSelect').value;
+    const rfidUid = document.getElementById('assignRfidUid').value;
+    
+    if (!customerId) {
+        showNotification('Please select a customer', 'error');
+        return;
+    }
+    
+    if (!rfidUid) {
+        showNotification('No RFID card scanned', 'error');
+        return;
+    }
+    
+    const customerName = document.getElementById('customerSelect').options[document.getElementById('customerSelect').selectedIndex].dataset.name;
+    
+    if (confirm(`Assign RFID card ${rfidUid} to ${customerName}?`)) {
+        // Make API call to assign RFID
+        fetch('/api/admin/assign-rfid', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                customer_id: customerId,
+                rfid_uid: rfidUid
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification(`RFID card successfully assigned to ${customerName}!`, 'success');
+                
+                // Reset form
+                cancelAssignment();
+                
+                // Remove customer from pending list
+                const customerOption = document.querySelector(`option[value="${customerId}"]`);
+                if (customerOption) {
+                    customerOption.remove();
+                }
+                
+                // Refresh the page after a short delay
+                setTimeout(() => {
+                    location.reload();
+                }, 2000);
+            } else {
+                showNotification(data.message || 'Failed to assign RFID card', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Assignment error:', error);
+            showNotification('Error assigning RFID card', 'error');
+        });
+    }
+}
+
+function cancelAssignment() {
+    currentRfidUid = null;
+    document.getElementById('assignmentSection').style.display = 'none';
+    document.getElementById('scannedCardDisplay').style.display = 'none';
+    document.getElementById('customerSelect').value = '';
+    document.getElementById('customerPreview').style.display = 'none';
+    
+    // Reset scanner status
+    document.getElementById('scannerStatus').innerHTML = `
+        <i class="fas fa-wifi fa-3x text-muted mb-3"></i>
+        <p class="text-muted">Ready to scan RFID cards</p>
+    `;
+}
+
+function refreshPendingCustomers() {
+    showNotification('Refreshing pending customers...', 'info');
+    setTimeout(() => {
+        location.reload();
+    }, 1000);
+}
+
+function viewAssignmentHistory() {
+    showNotification('Loading assignment history...', 'info');
+    // Implementation for viewing history
+}
+
+function bulkAssignment() {
+    showNotification('Opening bulk assignment tool...', 'info');
+    // Implementation for bulk assignment
+}
+
+function showNotification(message, type) {
+    const alertClass = type === 'success' ? 'alert-success' : 
+                      type === 'error' ? 'alert-danger' : 
+                      type === 'warning' ? 'alert-warning' : 'alert-info';
+    
+    const notification = `
+        <div class="alert ${alertClass} alert-dismissible fade show position-fixed" 
+             style="top: 20px; right: 20px; z-index: 9999; min-width: 300px;">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', notification);
+    
+    setTimeout(() => {
+        const alerts = document.querySelectorAll('.alert');
+        alerts.forEach(alert => {
+            if (alert.textContent.includes(message)) {
+                alert.remove();
+            }
+        });
+    }, 3000);
+}
+</script>
+{% endblock %}

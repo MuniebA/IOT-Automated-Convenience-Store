@@ -1,0 +1,694 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Advanced Analytics - IoT Store Admin{% endblock %}
+{% block page_title %}Advanced Analytics & AI Insights{% endblock %}
+{% block page_subtitle %}Comprehensive business intelligence and customer behavior analysis{% endblock %}
+
+{% block page_actions %}
+<div class="btn-group" role="group">
+    <button type="button" class="btn btn-outline-primary" onclick="exportAnalytics()">
+        <i class="fas fa-file-excel"></i> Export Report
+    </button>
+    <button type="button" class="btn btn-outline-info" onclick="scheduledReports()">
+        <i class="fas fa-calendar"></i> Scheduled Reports
+    </button>
+    <button type="button" class="btn btn-outline-success" onclick="refreshAnalytics()">
+        <i class="fas fa-sync-alt"></i> Refresh Data
+    </button>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Time Period Selector -->
+<div class="card mb-4">
+    <div class="card-body">
+        <div class="row g-3 align-items-center">
+            <div class="col-md-3">
+                <label class="form-label">Time Period</label>
+                <select class="form-select" id="timePeriod" onchange="updateAnalytics()">
+                    <option value="today">Today</option>
+                    <option value="week" selected>This Week</option>
+                    <option value="month">This Month</option>
+                    <option value="quarter">This Quarter</option>
+                    <option value="year">This Year</option>
+                    <option value="custom">Custom Range</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Metric Type</label>
+                <select class="form-select" id="metricType" onchange="updateAnalytics()">
+                    <option value="revenue">Revenue</option>
+                    <option value="customers">Customers</option>
+                    <option value="transactions">Transactions</option>
+                    <option value="fraud">Security</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Comparison</label>
+                <select class="form-select" id="comparison">
+                    <option value="previous">Previous Period</option>
+                    <option value="year_ago">Same Period Last Year</option>
+                    <option value="none">No Comparison</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <div class="d-flex gap-2 mt-4">
+                    <button class="btn btn-primary" onclick="applyFilters()">Apply</button>
+                    <button class="btn btn-outline-secondary" onclick="resetFilters()">Reset</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Key Performance Indicators -->
+<div class="row mb-4">
+    <div class="col-xl-3 col-md-6 mb-3">
+        <div class="stats-card border-start border-success border-4">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="icon bg-success text-white">
+                        <i class="fas fa-dollar-sign"></i>
+                    </div>
+                    <div class="value text-success">${{ "%.2f"|format(analytics.total_sales_today) }}</div>
+                    <div class="label">Total Revenue</div>
+                </div>
+                <div class="trend-indicator">
+                    <i class="fas fa-arrow-up text-success"></i>
+                    <small class="text-success">+15.3%</small>
+                </div>
+            </div>
+            <div class="mt-2">
+                <div class="progress" style="height: 4px;">
+                    <div class="progress-bar bg-success" style="width: 75%"></div>
+                </div>
+                <small class="text-muted">vs last period</small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-3">
+        <div class="stats-card border-start border-primary border-4">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="icon bg-primary text-white">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div class="value text-primary">{{ analytics.profiled_customers }}</div>
+                    <div class="label">Active Customers</div>
+                </div>
+                <div class="trend-indicator">
+                    <i class="fas fa-arrow-up text-success"></i>
+                    <small class="text-success">+8.7%</small>
+                </div>
+            </div>
+            <div class="mt-2">
+                <div class="progress" style="height: 4px;">
+                    <div class="progress-bar bg-primary" style="width: 60%"></div>
+                </div>
+                <small class="text-muted">new vs returning</small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-3">
+        <div class="stats-card border-start border-info border-4">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="icon bg-info text-white">
+                        <i class="fas fa-shopping-cart"></i>
+                    </div>
+                    <div class="value text-info">$45.60</div>
+                    <div class="label">Avg Order Value</div>
+                </div>
+                <div class="trend-indicator">
+                    <i class="fas fa-arrow-up text-success"></i>
+                    <small class="text-success">+12.1%</small>
+                </div>
+            </div>
+            <div class="mt-2">
+                <div class="progress" style="height: 4px;">
+                    <div class="progress-bar bg-info" style="width: 85%"></div>
+                </div>
+                <small class="text-muted">above target</small>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-3">
+        <div class="stats-card border-start border-warning border-4">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="icon bg-warning text-white">
+                        <i class="fas fa-brain"></i>
+                    </div>
+                    <div class="value text-warning">94.2%</div>
+                    <div class="label">AI Accuracy</div>
+                </div>
+                <div class="trend-indicator">
+                    <i class="fas fa-arrow-up text-success"></i>
+                    <small class="text-success">+2.1%</small>
+                </div>
+            </div>
+            <div class="mt-2">
+                <div class="progress" style="height: 4px;">
+                    <div class="progress-bar bg-warning" style="width: 94%"></div>
+                </div>
+                <small class="text-muted">recommendation engine</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row mb-4">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Revenue & Customer Trends</h5>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary active" onclick="switchChart('revenue')">Revenue</button>
+                    <button class="btn btn-outline-secondary" onclick="switchChart('customers')">Customers</button>
+                    <button class="btn btn-outline-secondary" onclick="switchChart('both')">Combined</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <canvas id="mainTrendChart" height="80"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0">Customer Segments</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="customerSegmentChart"></canvas>
+                <div class="mt-3">
+                    {% for cluster in analytics.customer_clusters %}
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="d-flex align-items-center">
+                            <div class="color-indicator bg-{% cycle 'primary', 'success', 'warning', 'info' %} me-2"></div>
+                            <span class="small">{{ cluster.cluster_name }}</span>
+                        </div>
+                        <span class="badge bg-light text-dark">{{ cluster.members.member_count or 0 }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- AI Insights & Customer Behavior -->
+<div class="row mb-4">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-brain me-2"></i>
+                    AI-Powered Insights
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="insight-item mb-3">
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="fas fa-lightbulb text-warning me-2"></i>
+                        <strong>Revenue Opportunity</strong>
+                        <span class="badge bg-success ms-auto">+$2,340</span>
+                    </div>
+                    <p class="small text-muted mb-2">University students show 85% higher response to beverage discounts between 2-4 PM. Consider targeted promotions.</p>
+                    <button class="btn btn-outline-primary btn-sm">Implement Suggestion</button>
+                </div>
+                
+                <div class="insight-item mb-3">
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="fas fa-users text-info me-2"></i>
+                        <strong>Customer Retention</strong>
+                        <span class="badge bg-warning ms-auto">Risk</span>
+                    </div>
+                    <p class="small text-muted mb-2">23 VIP customers haven't visited in 2+ weeks. Send personalized offers to prevent churn.</p>
+                    <button class="btn btn-outline-warning btn-sm">Send Campaign</button>
+                </div>
+                
+                <div class="insight-item mb-3">
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="fas fa-chart-line text-success me-2"></i>
+                        <strong>Product Performance</strong>
+                        <span class="badge bg-info ms-auto">Trending</span>
+                    </div>
+                    <p class="small text-muted mb-2">Premium coffee sales increased 45% after smart shelf placement. Replicate layout for other premium items.</p>
+                    <button class="btn btn-outline-success btn-sm">Apply Layout</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-shopping-bag me-2"></i>
+                    Purchase Behavior Analysis
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Heatmap of peak hours -->
+                <div class="mb-4">
+                    <h6>Peak Shopping Hours</h6>
+                    <div class="heatmap-container">
+                        <div class="row g-1">
+                            {% for hour in range(6, 23) %}
+                            <div class="col">
+                                <div class="heatmap-cell" 
+                                     style="background-color: {% if hour in [12,13,17,18] %}rgba(40,167,69,0.8){% elif hour in [11,14,16,19] %}rgba(255,193,7,0.8){% else %}rgba(108,117,125,0.3){% endif %}">
+                                    <small>{{ hour }}:00</small>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Top performing categories -->
+                <div class="mb-4">
+                    <h6>Category Performance</h6>
+                    <div class="category-performance">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span>Beverages</span>
+                            <div class="d-flex align-items-center">
+                                <div class="progress me-2" style="width: 100px; height: 8px;">
+                                    <div class="progress-bar bg-success" style="width: 85%"></div>
+                                </div>
+                                <small class="text-success">85%</small>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span>Snacks</span>
+                            <div class="d-flex align-items-center">
+                                <div class="progress me-2" style="width: 100px; height: 8px;">
+                                    <div class="progress-bar bg-info" style="width: 70%"></div>
+                                </div>
+                                <small class="text-info">70%</small>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span>Fresh Fruits</span>
+                            <div class="d-flex align-items-center">
+                                <div class="progress me-2" style="width: 100px; height: 8px;">
+                                    <div class="progress-bar bg-warning" style="width: 55%"></div>
+                                </div>
+                                <small class="text-warning">55%</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Shopping patterns -->
+                <div>
+                    <h6>Shopping Patterns</h6>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <div class="text-center p-2 bg-light rounded">
+                                <div class="fw-bold text-primary">3.2</div>
+                                <small class="text-muted">Avg Items/Visit</small>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="text-center p-2 bg-light rounded">
+                                <div class="fw-bold text-success">4.7 min</div>
+                                <small class="text-muted">Avg Visit Time</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detailed Analytics Tables -->
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Top Performing Products</h5>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary active" onclick="sortProducts('revenue')">By Revenue</button>
+                    <button class="btn btn-outline-secondary" onclick="sortProducts('quantity')">By Quantity</button>
+                    <button class="btn btn-outline-secondary" onclick="sortProducts('margin')">By Margin</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th>Category</th>
+                                <th>Revenue</th>
+                                <th>Qty Sold</th>
+                                <th>Margin</th>
+                                <th>Trend</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas fa-coffee text-primary me-2"></i>
+                                        <span>Premium Coffee</span>
+                                    </div>
+                                </td>
+                                <td>Beverages</td>
+                                <td class="text-success fw-bold">$1,247</td>
+                                <td>78</td>
+                                <td>32%</td>
+                                <td><i class="fas fa-arrow-up text-success"></i> +15%</td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas fa-battery-full text-warning me-2"></i>
+                                        <span>Energy Drink</span>
+                                    </div>
+                                </td>
+                                <td>Beverages</td>
+                                <td class="text-success fw-bold">$895</td>
+                                <td>156</td>
+                                <td>28%</td>
+                                <td><i class="fas fa-arrow-up text-success"></i> +8%</td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas fa-candy-cane text-info me-2"></i>
+                                        <span>Chocolate Bar</span>
+                                    </div>
+                                </td>
+                                <td>Snacks</td>
+                                <td class="text-success fw-bold">$623</td>
+                                <td>125</td>
+                                <td>45%</td>
+                                <td><i class="fas fa-arrow-down text-danger"></i> -3%</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Discount Effectiveness</h5>
+            </div>
+            <div class="card-body">
+                {% for discount in analytics.discount_effectiveness[:5] %}
+                <div class="discount-item mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="small fw-bold">{{ discount.discount_details.discount_percentage or 10 }}% Off</span>
+                        <span class="badge bg-{% if discount.customer_response.action_taken == 'purchased' %}success{% elif discount.customer_response.action_taken == 'shown' %}warning{% else %}secondary{% endif %}">
+                            {{ discount.customer_response.action_taken or 'shown' }}
+                        </span>
+                    </div>
+                    <div class="progress mb-1" style="height: 6px;">
+                        <div class="progress-bar bg-success" style="width: {% if discount.customer_response.action_taken == 'purchased' %}85{% elif discount.customer_response.action_taken == 'shown' %}40{% else %}15{% endif %}%"></div>
+                    </div>
+                    <small class="text-muted">{{ discount.discount_details.recommendation_source or 'AI Engine' }}</small>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let currentChart = 'revenue';
+let analyticsData = {{ analytics|tojson }};
+
+document.addEventListener('DOMContentLoaded', function() {
+    initializeCharts();
+    updateDashboard();
+});
+
+function initializeCharts() {
+    // Main trend chart
+    const trendCtx = document.getElementById('mainTrendChart');
+    if (trendCtx) {
+        new Chart(trendCtx, {
+            type: 'line',
+            data: {
+                labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                datasets: [{
+                    label: 'Revenue',
+                    data: [1200, 1450, 1800, 1650, 2100, 2400, 1950],
+                    borderColor: '#059669',
+                    backgroundColor: 'rgba(5, 150, 105, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }, {
+                    label: 'Customers',
+                    data: [45, 52, 68, 61, 78, 89, 72],
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    tension: 0.4,
+                    fill: true,
+                    yAxisID: 'y1'
+                }]
+            },
+            options: {
+                responsive: true,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        ticks: {
+                            callback: function(value) {
+                                return '$' + value;
+                            }
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        grid: {
+                            drawOnChartArea: false,
+                        },
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                if (context.datasetIndex === 0) {
+                                    return 'Revenue: $' + context.parsed.y;
+                                } else {
+                                    return 'Customers: ' + context.parsed.y;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    // Customer segment chart
+    const segmentCtx = document.getElementById('customerSegmentChart');
+    if (segmentCtx) {
+        new Chart(segmentCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['University Students', 'Young Professionals', 'VIP Members', 'Others'],
+                datasets: [{
+                    data: [45, 30, 15, 10],
+                    backgroundColor: [
+                        '#3b82f6',
+                        '#059669',
+                        '#f59e0b',
+                        '#6366f1'
+                    ],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        });
+    }
+}
+
+function switchChart(type) {
+    currentChart = type;
+    
+    // Update button states
+    document.querySelectorAll('.btn-group button').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    event.target.classList.add('active');
+    
+    // Update chart (implementation depends on chart library)
+    showNotification(`Switched to ${type} view`, 'info');
+}
+
+function updateAnalytics() {
+    const timePeriod = document.getElementById('timePeriod').value;
+    const metricType = document.getElementById('metricType').value;
+    
+    showNotification(`Updating analytics for ${timePeriod} - ${metricType}`, 'info');
+    // Implementation for updating analytics
+}
+
+function applyFilters() {
+    showNotification('Applying filters...', 'info');
+    // Implementation for applying filters
+}
+
+function resetFilters() {
+    document.getElementById('timePeriod').value = 'week';
+    document.getElementById('metricType').value = 'revenue';
+    document.getElementById('comparison').value = 'previous';
+    updateAnalytics();
+}
+
+function sortProducts(criteria) {
+    showNotification(`Sorting products by ${criteria}`, 'info');
+    // Implementation for sorting products
+}
+
+function exportAnalytics() {
+    showNotification('Exporting analytics report...', 'info');
+    // Implementation for export
+}
+
+function scheduledReports() {
+    showNotification('Opening scheduled reports configuration...', 'info');
+    // Implementation for scheduled reports
+}
+
+function refreshAnalytics() {
+    showNotification('Refreshing analytics data...', 'info');
+    setTimeout(() => {
+        location.reload();
+    }, 1000);
+}
+
+function updateDashboard() {
+    // Real-time updates (implement WebSocket or polling)
+    setInterval(() => {
+        // Update key metrics
+        fetch('/api/dashboard/realtime')
+            .then(response => response.json())
+            .then(data => {
+                // Update dashboard with new data
+                console.log('Dashboard updated', data);
+            })
+            .catch(error => console.error('Update failed:', error));
+    }, 30000);
+}
+
+function showNotification(message, type) {
+    const alertClass = type === 'success' ? 'alert-success' : 
+                      type === 'error' ? 'alert-danger' : 
+                      type === 'warning' ? 'alert-warning' : 'alert-info';
+    
+    const notification = `
+        <div class="alert ${alertClass} alert-dismissible fade show position-fixed" 
+             style="top: 20px; right: 20px; z-index: 9999; min-width: 300px;">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', notification);
+    
+    setTimeout(() => {
+        const alerts = document.querySelectorAll('.alert');
+        alerts.forEach(alert => {
+            if (alert.textContent.includes(message)) {
+                alert.remove();
+            }
+        });
+    }, 3000);
+}
+</script>
+
+<style>
+.trend-indicator {
+    text-align: center;
+    min-width: 60px;
+}
+
+.insight-item {
+    border-left: 3px solid #e5e7eb;
+    padding-left: 1rem;
+    border-radius: 0 8px 8px 0;
+    background: #f9fafb;
+    padding: 1rem;
+}
+
+.heatmap-container {
+    margin: 1rem 0;
+}
+
+.heatmap-cell {
+    height: 40px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 500;
+}
+
+.category-performance {
+    font-size: 0.875rem;
+}
+
+.color-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.discount-item {
+    padding: 0.75rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+@media (max-width: 768px) {
+    .stats-card .trend-indicator {
+        margin-top: 1rem;
+        text-align: left;
+    }
+    
+    .heatmap-cell {
+        height: 30px;
+        font-size: 0.75rem;
+    }
+}
+</style>
+{% endblock %}
