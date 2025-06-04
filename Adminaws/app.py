@@ -683,13 +683,64 @@ def admin_fraud():
 @app.route('/admin/inventory')
 @admin_required
 def admin_inventory():
-    """Inventory management"""
+    """Inventory management with enhanced error handling"""
     try:
-        products = db_client.get_inventory_data()
+        logger.info("Loading inventory page...")
+
+        # Get inventory data with safe operation
+        def get_products_operation():
+            response = db_client.tables['products'].scan()
+            products = response.get('Items', [])
+
+            # Format products for template
+            formatted_products = []
+            for product in products:
+                formatted_product = {}
+
+                # Convert all fields safely
+                for key, value in product.items():
+                    if isinstance(value, Decimal):
+                        formatted_product[key] = float(value)
+                    else:
+                        formatted_product[key] = value
+
+                # Ensure all required fields exist with defaults
+                required_fields = {
+                    'product_id': formatted_product.get('product_id', ''),
+                    'product_name': formatted_product.get('product_name', 'Unknown Product'),
+                    'category': formatted_product.get('category', 'General'),
+                    'regular_price': formatted_product.get('regular_price', 0.0),
+                    'current_price': formatted_product.get('current_price', 0.0),
+                    'vip_price': formatted_product.get('vip_price', 0.0),
+                    'inventory_level': formatted_product.get('inventory_level', 0),
+                    'reorder_threshold': formatted_product.get('reorder_threshold', 10),
+                    'is_active': formatted_product.get('is_active', True),
+                    'is_premium': formatted_product.get('is_premium', False),
+                    'product_rfid': formatted_product.get('product_rfid', ''),
+                    'description': formatted_product.get('description', ''),
+                    'weight_per_unit': formatted_product.get('weight_per_unit', 0.0),
+                    'discount_eligible': formatted_product.get('discount_eligible', True)
+                }
+
+                # Add calculated fields
+                required_fields['needs_reorder'] = required_fields['inventory_level'] <= required_fields['reorder_threshold']
+
+                formatted_products.append(required_fields)
+
+            return formatted_products
+
+        products = db_client.safe_table_operation(
+            'products', get_products_operation, [])
+
+        logger.info(f"Loaded {len(products)} products for inventory page")
         return render_template('admin/inventory.html', products=products)
+
     except Exception as e:
         logger.error(f"Inventory error: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
         flash('Error loading inventory data', 'error')
+
+        # Return with empty products list to prevent template errors
         return render_template('admin/inventory.html', products=[])
 
 

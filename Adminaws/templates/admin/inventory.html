@@ -31,7 +31,7 @@
             </div>
             <div class="value text-primary">{{ products|length }}</div>
             <div class="label">Total Products</div>
-            <small class="text-muted">{{ products|selectattr("is_active")|list|length }} active</small>
+            <small class="text-muted">{{ products|selectattr("is_active", "equalto", true)|list|length or 0 }} active</small>
         </div>
     </div>
     
@@ -40,7 +40,8 @@
             <div class="icon bg-warning text-white">
                 <i class="fas fa-exclamation-triangle"></i>
             </div>
-            <div class="value text-warning">{{ products|selectattr("needs_reorder")|list|length }}</div>
+            {% set low_stock_count = products|selectattr("inventory_level", "lessthan", 10)|list|length %}
+            <div class="value text-warning">{{ low_stock_count }}</div>
             <div class="label">Low Stock Items</div>
             <small class="text-muted">Need reordering</small>
         </div>
@@ -51,7 +52,8 @@
             <div class="icon bg-success text-white">
                 <i class="fas fa-dollar-sign"></i>
             </div>
-            <div class="value text-success">${{ "%.2f"|format(products|sum(attribute="regular_price")) }}</div>
+            {% set total_value = products|sum(attribute="regular_price") %}
+            <div class="value text-success">${{ "%.2f"|format(total_value|float) }}</div>
             <div class="label">Total Inventory Value</div>
             <small class="text-muted">At regular prices</small>
         </div>
@@ -62,7 +64,7 @@
             <div class="icon bg-info text-white">
                 <i class="fas fa-crown"></i>
             </div>
-            <div class="value text-info">{{ products|selectattr("is_premium")|list|length }}</div>
+            <div class="value text-info">{{ products|selectattr("is_premium", "equalto", true)|list|length or 0 }}</div>
             <div class="label">Premium Products</div>
             <small class="text-muted">High-value items</small>
         </div>
@@ -70,7 +72,7 @@
 </div>
 
 <!-- Stock Alerts -->
-{% set low_stock_products = products|selectattr("needs_reorder")|list %}
+{% set low_stock_products = products|selectattr("inventory_level", "lessthan", 10)|list %}
 {% if low_stock_products %}
 <div class="alert alert-warning mb-4">
     <div class="d-flex justify-content-between align-items-center">
@@ -101,8 +103,10 @@
                 <label class="form-label">Category</label>
                 <select class="form-select" id="categoryFilter">
                     <option value="">All Categories</option>
-                    {% for category in products|map(attribute="category")|unique %}
+                    {% for category in products|map(attribute="category")|unique|list %}
+                    {% if category %}
                     <option value="{{ category }}">{{ category }}</option>
+                    {% endif %}
                     {% endfor %}
                 </select>
             </div>
@@ -167,7 +171,7 @@
         <div id="gridView" class="row g-3">
             {% for product in products %}
             <div class="col-xl-3 col-lg-4 col-md-6 product-card" data-product-id="{{ product.product_id }}">
-                <div class="card h-100 {% if product.needs_reorder %}border-warning{% elif not product.is_active %}border-secondary{% endif %}">
+                <div class="card h-100 {% if (product.inventory_level or 0) < 10 %}border-warning{% elif not product.is_active %}border-secondary{% endif %}">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <div class="product-icon">
@@ -179,7 +183,7 @@
                                 {% endif %}
                                 {% if not product.is_active %}
                                 <span class="badge bg-secondary">Inactive</span>
-                                {% elif product.needs_reorder %}
+                                {% elif (product.inventory_level or 0) < (product.reorder_threshold or 10) %}
                                 <span class="badge bg-warning">Low Stock</span>
                                 {% else %}
                                 <span class="badge bg-success">In Stock</span>
@@ -187,22 +191,22 @@
                             </div>
                         </div>
                         
-                        <h6 class="card-title">{{ product.product_name }}</h6>
-                        <p class="card-text small text-muted">{{ product.description or 'No description' }}</p>
+                        <h6 class="card-title">{{ product.product_name or 'Unknown Product' }}</h6>
+                        <p class="card-text small text-muted">{{ product.description or 'No description available' }}</p>
                         
                         <div class="product-details">
                             <div class="row text-center mb-2">
                                 <div class="col">
                                     <small class="text-muted">Regular</small>
-                                    <div class="fw-bold text-primary">${{ "%.2f"|format(product.regular_price) }}</div>
+                                    <div class="fw-bold text-primary">${{ "%.2f"|format(product.regular_price|float) if product.regular_price else "0.00" }}</div>
                                 </div>
                                 <div class="col">
                                     <small class="text-muted">Current</small>
-                                    <div class="fw-bold text-success">${{ "%.2f"|format(product.current_price) }}</div>
+                                    <div class="fw-bold text-success">${{ "%.2f"|format(product.current_price|float) if product.current_price else "0.00" }}</div>
                                 </div>
                                 <div class="col">
                                     <small class="text-muted">VIP</small>
-                                    <div class="fw-bold text-warning">${{ "%.2f"|format(product.vip_price) }}</div>
+                                    <div class="fw-bold text-warning">${{ "%.2f"|format(product.vip_price|float) if product.vip_price else "0.00" }}</div>
                                 </div>
                             </div>
                             
@@ -211,9 +215,10 @@
                                 <small class="text-muted">RFID: <code>{{ product.product_rfid or 'N/A' }}</code></small>
                             </div>
                             
-                            {% if product.needs_reorder %}
+                            {% if (product.inventory_level or 0) < (product.reorder_threshold or 10) %}
                             <div class="progress mb-2" style="height: 4px;">
-                                <div class="progress-bar bg-warning" style="width: {{ (product.inventory_level / product.reorder_threshold * 100) if product.reorder_threshold else 0 }}%"></div>
+                                {% set progress_width = ((product.inventory_level or 0) / (product.reorder_threshold or 10) * 100) if (product.reorder_threshold or 10) > 0 else 0 %}
+                                <div class="progress-bar bg-warning" style="width: {{ progress_width }}%"></div>
                             </div>
                             {% endif %}
                         </div>
@@ -259,6 +264,17 @@
                     </div>
                 </div>
             </div>
+            {% else %}
+            <div class="col-12">
+                <div class="text-center py-5">
+                    <i class="fas fa-boxes fa-4x text-muted mb-3"></i>
+                    <h4 class="text-muted">No Products Found</h4>
+                    <p class="text-muted">No products are currently available in the inventory.</p>
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addProductModal">
+                        <i class="fas fa-plus"></i> Add First Product
+                    </button>
+                </div>
+            </div>
             {% endfor %}
         </div>
         
@@ -283,7 +299,7 @@
                                 <div class="d-flex align-items-center">
                                     <i class="fas fa-{% if product.category == 'Beverages' %}coffee{% elif product.category == 'Snacks' %}cookie-bite{% elif product.category == 'Fresh Fruits' %}apple-alt{% else %}box{% endif %} fa-2x text-primary me-3"></i>
                                     <div>
-                                        <div class="fw-bold">{{ product.product_name }}</div>
+                                        <div class="fw-bold">{{ product.product_name or 'Unknown Product' }}</div>
                                         <small class="text-muted">{{ product.product_id }}</small>
                                         {% if product.is_premium %}
                                         <span class="badge bg-warning ms-2">Premium</span>
@@ -291,17 +307,17 @@
                                     </div>
                                 </div>
                             </td>
-                            <td>{{ product.category }}</td>
+                            <td>{{ product.category or 'Unknown' }}</td>
                             <td>
                                 <div class="price-display">
-                                    <div>Regular: <strong class="text-primary">${{ "%.2f"|format(product.regular_price) }}</strong></div>
-                                    <div>Current: <strong class="text-success">${{ "%.2f"|format(product.current_price) }}</strong></div>
-                                    <div>VIP: <strong class="text-warning">${{ "%.2f"|format(product.vip_price) }}</strong></div>
+                                    <div>Regular: <strong class="text-primary">${{ "%.2f"|format(product.regular_price|float) if product.regular_price else "0.00" }}</strong></div>
+                                    <div>Current: <strong class="text-success">${{ "%.2f"|format(product.current_price|float) if product.current_price else "0.00" }}</strong></div>
+                                    <div>VIP: <strong class="text-warning">${{ "%.2f"|format(product.vip_price|float) if product.vip_price else "0.00" }}</strong></div>
                                 </div>
                             </td>
                             <td>
                                 <div class="stock-info">
-                                    <div class="fw-bold {% if product.needs_reorder %}text-warning{% else %}text-success{% endif %}">
+                                    <div class="fw-bold {% if (product.inventory_level or 0) < (product.reorder_threshold or 10) %}text-warning{% else %}text-success{% endif %}">
                                         {{ product.inventory_level or 0 }} units
                                     </div>
                                     <small class="text-muted">Reorder at: {{ product.reorder_threshold or 0 }}</small>
@@ -310,7 +326,7 @@
                             <td>
                                 {% if not product.is_active %}
                                 <span class="badge bg-secondary">Inactive</span>
-                                {% elif product.needs_reorder %}
+                                {% elif (product.inventory_level or 0) < (product.reorder_threshold or 10) %}
                                 <span class="badge bg-warning">Low Stock</span>
                                 {% else %}
                                 <span class="badge bg-success">In Stock</span>
@@ -401,8 +417,8 @@
                             <label class="form-label">RFID Tag</label>
                             <div class="input-group">
                                 <input type="text" class="form-control" name="product_rfid" placeholder="RFID tag ID">
-                                <button type="button" class="btn btn-outline-primary" onclick="scanRFIDForProduct()">
-                                    <i class="fas fa-wifi"></i> Scan
+                                <button type="button" class="btn btn-outline-primary" onclick="generateRFIDForProduct()">
+                                    <i class="fas fa-dice"></i> Generate
                                 </button>
                             </div>
                         </div>
@@ -498,7 +514,7 @@
 
 {% block extra_js %}
 <script>
-let allProducts = {{ products|tojson }};
+let allProducts = {{ products|tojson|safe }};
 let currentView = 'grid';
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -512,8 +528,10 @@ function initializeFilters() {
     const priceFilter = document.getElementById('priceFilter');
     
     [searchInput, categoryFilter, statusFilter, priceFilter].forEach(element => {
-        element.addEventListener('change', applyFilters);
-        element.addEventListener('keyup', applyFilters);
+        if (element) {
+            element.addEventListener('change', applyFilters);
+            element.addEventListener('keyup', applyFilters);
+        }
     });
 }
 
@@ -538,10 +556,10 @@ function switchView(view) {
 }
 
 function applyFilters() {
-    const searchTerm = document.getElementById('productSearch').value.toLowerCase();
-    const categoryFilter = document.getElementById('categoryFilter').value;
-    const statusFilter = document.getElementById('statusFilter').value;
-    const priceFilter = document.getElementById('priceFilter').value;
+    const searchTerm = document.getElementById('productSearch')?.value.toLowerCase() || '';
+    const categoryFilter = document.getElementById('categoryFilter')?.value || '';
+    const statusFilter = document.getElementById('statusFilter')?.value || '';
+    const priceFilter = document.getElementById('priceFilter')?.value || '';
     
     const productCards = document.querySelectorAll('.product-card, tr[data-product-id]');
     let visibleCount = 0;
@@ -583,7 +601,7 @@ function applyFilters() {
                     if (product.is_active) visible = false;
                     break;
                 case 'low_stock':
-                    if (!product.needs_reorder) visible = false;
+                    if ((product.inventory_level || 0) >= (product.reorder_threshold || 10)) visible = false;
                     break;
                 case 'premium':
                     if (!product.is_premium) visible = false;
@@ -593,7 +611,7 @@ function applyFilters() {
         
         // Price filter
         if (priceFilter) {
-            const price = product.regular_price;
+            const price = product.regular_price || 0;
             switch(priceFilter) {
                 case '0-5':
                     if (price > 5) visible = false;
@@ -615,14 +633,23 @@ function applyFilters() {
         if (visible) visibleCount++;
     });
     
-    document.getElementById('productCount').textContent = `${visibleCount} products`;
+    const countElement = document.getElementById('productCount');
+    if (countElement) {
+        countElement.textContent = `${visibleCount} products`;
+    }
 }
 
 function clearFilters() {
-    document.getElementById('productSearch').value = '';
-    document.getElementById('categoryFilter').value = '';
-    document.getElementById('statusFilter').value = '';
-    document.getElementById('priceFilter').value = '';
+    const searchInput = document.getElementById('productSearch');
+    const categoryFilter = document.getElementById('categoryFilter');
+    const statusFilter = document.getElementById('statusFilter');
+    const priceFilter = document.getElementById('priceFilter');
+    
+    if (searchInput) searchInput.value = '';
+    if (categoryFilter) categoryFilter.value = '';
+    if (statusFilter) statusFilter.value = '';
+    if (priceFilter) priceFilter.value = '';
+    
     applyFilters();
 }
 
@@ -637,7 +664,7 @@ function adjustStock(productId) {
     if (!product) return;
     
     document.getElementById('stockProductId').value = productId;
-    document.getElementById('stockProductName').value = product.product_name;
+    document.getElementById('stockProductName').value = product.product_name || 'Unknown Product';
     document.getElementById('currentStock').value = product.inventory_level || 0;
     document.getElementById('adjustmentQuantity').value = '';
     document.getElementById('adjustmentNotes').value = '';
@@ -661,13 +688,37 @@ function confirmStockAdjustment() {
     // Implementation for stock adjustment API call
     showNotification(`Stock adjusted for product ${productId}`, 'success');
     bootstrap.Modal.getInstance(document.getElementById('stockAdjustModal')).hide();
+    
+    // Update local data
+    const product = allProducts.find(p => p.product_id === productId);
+    if (product) {
+        const currentStock = product.inventory_level || 0;
+        switch(adjustmentType) {
+            case 'add':
+                product.inventory_level = currentStock + quantity;
+                break;
+            case 'remove':
+                product.inventory_level = Math.max(0, currentStock - quantity);
+                break;
+            case 'set':
+                product.inventory_level = quantity;
+                break;
+        }
+        
+        // Refresh the display
+        setTimeout(() => location.reload(), 1000);
+    }
 }
 
 function updatePrice(productId) {
-    const newPrice = prompt('Enter new current price:');
+    const product = allProducts.find(p => p.product_id === productId);
+    if (!product) return;
+    
+    const newPrice = prompt(`Enter new current price for ${product.product_name}:`, product.current_price || 0);
     if (newPrice && parseFloat(newPrice) > 0) {
-        showNotification(`Price updated for product ${productId}`, 'success');
-        // Implementation for price update
+        showNotification(`Price updated for ${product.product_name}`, 'success');
+        // Implementation for price update API call
+        product.current_price = parseFloat(newPrice);
     }
 }
 
@@ -684,14 +735,26 @@ function viewSalesHistory(productId) {
 }
 
 function activateProduct(productId) {
-    showNotification(`Product ${productId} activated`, 'success');
-    // Implementation for activation
+    if (confirm('Activate this product?')) {
+        showNotification(`Product ${productId} activated`, 'success');
+        // Implementation for activation
+        const product = allProducts.find(p => p.product_id === productId);
+        if (product) {
+            product.is_active = true;
+            setTimeout(() => location.reload(), 1000);
+        }
+    }
 }
 
 function deactivateProduct(productId) {
     if (confirm('Deactivate this product? It will no longer be available for purchase.')) {
         showNotification(`Product ${productId} deactivated`, 'warning');
         // Implementation for deactivation
+        const product = allProducts.find(p => p.product_id === productId);
+        if (product) {
+            product.is_active = false;
+            setTimeout(() => location.reload(), 1000);
+        }
     }
 }
 
@@ -716,24 +779,28 @@ function saveProduct() {
     showNotification('Product saved successfully', 'success');
     bootstrap.Modal.getInstance(document.getElementById('addProductModal')).hide();
     form.reset();
+    
+    // Refresh page after delay
+    setTimeout(() => location.reload(), 1000);
 }
 
-function scanRFIDForProduct() {
-    fetch('/api/simulate-rfid-scan')
-        .then(response => response.json())
-        .then(data => {
-            document.querySelector('input[name="product_rfid"]').value = data.rfid_uid;
-            showNotification('RFID tag scanned successfully', 'success');
-        })
-        .catch(error => {
-            showNotification('Error scanning RFID tag', 'error');
-        });
+function generateRFIDForProduct() {
+    // Generate a random RFID
+    const randomRfid = 'RFID' + Math.random().toString(36).substring(2, 8).toUpperCase();
+    const rfidInput = document.querySelector('input[name="product_rfid"]');
+    if (rfidInput) {
+        rfidInput.value = randomRfid;
+        showNotification('RFID tag generated successfully', 'success');
+    }
 }
 
 function showLowStockItems() {
-    document.getElementById('statusFilter').value = 'low_stock';
-    applyFilters();
-    showNotification('Filtered to show low stock items', 'info');
+    const statusFilter = document.getElementById('statusFilter');
+    if (statusFilter) {
+        statusFilter.value = 'low_stock';
+        applyFilters();
+        showNotification('Filtered to show low stock items', 'info');
+    }
 }
 
 function bulkPriceUpdate() {
@@ -742,7 +809,7 @@ function bulkPriceUpdate() {
 }
 
 function stockAlert() {
-    const lowStockCount = allProducts.filter(p => p.needs_reorder).length;
+    const lowStockCount = allProducts.filter(p => (p.inventory_level || 0) < (p.reorder_threshold || 10)).length;
     if (lowStockCount > 0) {
         showNotification(`${lowStockCount} items need reordering`, 'warning');
         showLowStockItems();
