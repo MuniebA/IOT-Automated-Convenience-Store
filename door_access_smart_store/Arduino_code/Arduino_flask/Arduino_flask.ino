@@ -14,6 +14,10 @@ MFRC522 mfrc522(SS_PIN, RST_PIN);
 Servo doorServo;
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
+unsigned long lastCardScanTime = 0;
+bool waitingForResponse = false;
+String lastScannedUID = "";
+
 int irThreshold = 300;
 const int servoOpen = 90;
 const int servoClosed = 0;
@@ -124,7 +128,7 @@ void processWebCommand(String command) {
 
 void handleRFIDCard(String uidStr) {
   if (currentState == REGISTER_MODE) {
-    // Registration mode
+    // Registration mode - keep existing logic
     if (pendingUserName != "") {
       // Register the specific pending user
       saveToEEPROM(uidStr, pendingUserName);
@@ -156,31 +160,19 @@ void handleRFIDCard(String uidStr) {
     }
     
   } else if (currentState == MONITOR_MODE) {
-    // Normal access control
-    String name = readFromEEPROM(uidStr);
-    if (name != "") {
-      Serial.println("ACCESS:GRANTED:" + uidStr + ":" + name);
-      lcd.clear();
-      lcd.setCursor(0, 0);
-      lcd.print("Welcome,");
-      lcd.setCursor(0, 1);
-      lcd.print(name);
-      openDoor();
-      detectMovement();
-    } else {
-      Serial.println("ACCESS:DENIED:" + uidStr + ":UNKNOWN_CARD");
-      lcd.clear();
-      lcd.setCursor(0, 0);
-      lcd.print("Access Denied");
-      lcd.setCursor(0, 1);
-      lcd.print("Unknown Card");
-      delay(2000);
-    }
+    // CHANGED: Instead of checking local EEPROM and granting access,
+    // send CARD_SCANNED and let Python system decide
+    Serial.println("CARD_SCANNED:" + uidStr);
     
-    // Return to scanning state
+    // Show processing message on LCD
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print("Scan your card");
+    lcd.print("Processing...");
+    lcd.setCursor(0, 1);
+    lcd.print("Please wait");
+    
+    // NOTE: Door will open when Python sends "MANUAL_OPEN" command
+    // after processing through MQTT/Cloud
   }
 }
 

@@ -1,0 +1,381 @@
+{% extends "layout.html" %}
+
+{% block title %}Smart Cart - Shopping{% endblock %}
+
+{% block content %}
+<div id="alerts"></div>
+
+<div class="row">
+    <!-- Left Column: Scanned Items -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <i class="fas fa-shopping-basket"></i> Your Shopping Cart
+            </div>
+            <div class="card-body">
+                <div id="cartItems">
+                    <div class="text-center py-5">
+                        <i class="fas fa-spinner fa-spin fa-2x"></i>
+                        <p class="mt-2">Loading cart items...</p>
+                    </div>
+                </div>
+                <div class="total-section d-flex justify-content-between">
+                    <span>Total:</span>
+                    <span id="cartTotal">$0.00</span>
+                </div>
+                <div class="text-center mt-3">
+                    <a href="/checkout_page" id="proceedToCheckoutBtn" class="btn btn-success btn-lg">
+                        <i class="fas fa-cash-register"></i> Proceed to Checkout
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Recent Scan and Controls -->
+    <div class="col-md-4">
+        <!-- Recent Scan Card -->
+        <div class="card mb-4" id="scanResult">
+            <div class="card-header bg-info text-white">
+                <i class="fas fa-tag"></i> Recent Scan
+            </div>
+            <div class="card-body">
+                <div id="recentScanInfo">
+                    <p class="text-center text-muted">Waiting for item scan...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls Card -->
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <i class="fas fa-cogs"></i> Controls
+            </div>
+            <div class="card-body">
+                <button id="tareBtn" class="btn btn-outline-secondary w-100 mb-2">
+                    <i class="fas fa-balance-scale"></i> Tare Scale
+                </button>
+                <button id="clearFraudBtn" class="btn btn-outline-danger w-100">
+                    <i class="fas fa-exclamation-triangle"></i> Clear Fraud Alert
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Global variables
+    let currentScannedItem = null;
+    let cartItems = [];
+    let cartTotal = 0;
+    let fraudDetected = false;
+    let lastFraudId = null;  // Store the last fraud alert ID to prevent re-showing the same alert
+    let pollTimer = null;    // Store the timer ID so we can cancel it
+
+    // Functions for polling and updating UI
+    function pollForRecentScan() {
+        clearTimeout(pollTimer);  // Clear any existing timer
+        
+        $.ajax({
+            url: '/get_recent_scan',
+            type: 'GET',
+            dataType: 'json',
+            success: function(response) {
+                if (response.error) {
+                    showAlert('Error loading recent scan: ' + response.error, 'danger');
+                    return;
+                }
+
+                // If fraud is already cleared, don't reshow it
+                if (response.fraud && lastFraudId === response.fraud.id) {
+                    // Skip processing this fraud alert as it's already been cleared
+                    pollTimer = setTimeout(pollForRecentScan, 2000);
+                    return;
+                }
+
+                if (response.item) {
+                    currentScannedItem = response.item;
+                    // Check for fraud
+                    if (response.fraud) {
+                        fraudDetected = true;
+                        lastFraudId = response.fraud.id;  // Store the fraud ID
+                        updateRecentScanUI(response.item, response.fraud);
+                    } else {
+                        fraudDetected = false;
+                        updateRecentScanUI(response.item, null);
+                    }
+                } else {
+                    // No item scanned and no active fraud
+                    if (!fraudDetected) {
+                        currentScannedItem = null;
+                        $('#recentScanInfo').html('<p class="text-center text-muted">Waiting for item scan...</p>');
+                        $('#scanResult').removeClass('fraud-alert');
+                    }
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('Error polling for recent scan:', error);
+            },
+            complete: function() {
+                // Poll again after a delay (only if not canceled)
+                if (!fraudDetected) {
+                    pollTimer = setTimeout(pollForRecentScan, 2000);
+                }
+            }
+        });
+    }
+
+    function updateRecentScanUI(item, fraud) {
+        let cardClass = fraud ? 'fraud-alert' : '';
+        $('#scanResult').removeClass('fraud-alert').addClass(cardClass);
+
+        let content = `
+            <h5>${item.product_name}</h5>
+            <p class="mb-1"><strong>Price:</strong> ${formatCurrency(item.price)}</p>
+            <p class="mb-1"><strong>Tag ID:</strong> ${item.tag_id}</p>
+            <p class="mb-1"><strong>Scanned:</strong> ${formatDateTime(item.timestamp)}</p>
+        `;
+
+        if (fraud) {
+            content += `
+                <div class="alert alert-danger mt-2">
+                    <strong>Fraud Detected!</strong> ${fraud.details}
+                </div>
+            `;
+        } else if (item.is_grocery) {
+            if (item.weight) {
+                content += `
+                    <p class="mb-1"><strong>Weight:</strong> ${item.weight} g</p>
+                    <button class="btn btn-primary w-100 mt-3" onclick="validateItem(${item.id})">
+                        <i class="fas fa-check"></i> Add to Cart
+                    </button>
+                `;
+            } else {
+                content += `
+                    <button class="btn btn-info w-100 mt-3" onclick="weighItem(${item.id})">
+                        <i class="fas fa-weight"></i> Weigh Item
+                    </button>
+                `;
+            }
+        } else {
+            content += `
+                <button class="btn btn-primary w-100 mt-3" onclick="validateItem(${item.id})">
+                    <i class="fas fa-check"></i> Add to Cart
+                </button>
+            `;
+        }
+
+        $('#recentScanInfo').html(content);
+    }
+
+    function loadCartItems() {
+        $.ajax({
+            url: '/get_cart_items',
+            type: 'GET',
+            dataType: 'json',
+            success: function(response) {
+                if (response.error) {
+                    showAlert('Error loading cart items: ' + response.error, 'danger');
+                    return;
+                }
+
+                cartItems = response.items;
+                cartTotal = response.total;
+                updateCartUI();
+            },
+            error: function(xhr, status, error) {
+                console.error('Error loading cart items:', error);
+                showAlert('Failed to load cart items. Please try again.', 'danger');
+            }
+        });
+    }
+
+    function updateCartUI() {
+        if (cartItems.length === 0) {
+            $('#cartItems').html('<p class="text-center text-muted">Your cart is empty</p>');
+        } else {
+            let html = '';
+            cartItems.forEach(item => {
+                html += `
+                    <div class="product-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">${item.product_name}</h6>
+                            <small class="text-muted">
+                                ${item.is_grocery ? 'Weight: ' + (item.weight || '0') + 'g' : ''}
+                            </small>
+                        </div>
+                        <div>
+                            <span class="badge bg-primary">${formatCurrency(item.price)}</span>
+                        </div>
+                    </div>
+                `;
+            });
+            $('#cartItems').html(html);
+        }
+        $('#cartTotal').text(formatCurrency(cartTotal));
+    }
+
+    // Action functions
+    function validateItem(itemId) {
+        $.ajax({
+            url: '/validate_item',
+            type: 'POST',
+            data: { item_id: itemId },
+            dataType: 'json',
+            success: function(response) {
+                if (response.error) {
+                    showAlert('Error validating item: ' + response.error, 'danger');
+                    return;
+                }
+
+                showAlert('Item added to cart!', 'success');
+                currentScannedItem = null;
+                $('#recentScanInfo').html('<p class="text-center text-muted">Waiting for item scan...</p>');
+                $('#scanResult').removeClass('fraud-alert');
+                fraudDetected = false;
+                loadCartItems();
+                
+                // Resume polling after item is validated
+                pollForRecentScan();
+            },
+            error: function(xhr, status, error) {
+                console.error('Error validating item:', error);
+                showAlert('Failed to validate item. Please try again.', 'danger');
+            }
+        });
+    }
+
+    function weighItem(itemId) {
+        $('#recentScanInfo').html(`
+            <div class="text-center py-3">
+                <i class="fas fa-weight fa-pulse fa-2x"></i>
+                <p class="mt-2">Weighing item...</p>
+            </div>
+        `);
+
+        $.ajax({
+            url: '/weigh_item',
+            type: 'POST',
+            data: { item_id: itemId },
+            dataType: 'json',
+            success: function(response) {
+                if (response.error) {
+                    showAlert('Error weighing item: ' + response.error, 'danger');
+                    pollForRecentScan();
+                    return;
+                }
+
+                showAlert('Item weighed successfully!', 'success');
+                pollForRecentScan();
+            },
+            error: function(xhr, status, error) {
+                console.error('Error weighing item:', error);
+                showAlert('Failed to weigh item. Please try again.', 'danger');
+                pollForRecentScan();
+            }
+        });
+    }
+
+    function checkout() {
+        if (cartItems.length === 0) {
+            showAlert('Your cart is empty. Please add items before checkout.', 'warning');
+            return;
+        }
+
+        $('#checkoutBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Processing...');
+
+        $.ajax({
+            url: '/checkout',
+            type: 'POST',
+            dataType: 'json',
+            success: function(response) {
+                if (response.error) {
+                    showAlert('Checkout error: ' + response.error, 'danger');
+                    $('#checkoutBtn').prop('disabled', false).html('<i class="fas fa-cash-register"></i> Checkout');
+                    return;
+                }
+
+                showAlert(`Checkout successful! Total: ${formatCurrency(response.total)}`, 'success');
+                $('#checkoutBtn').prop('disabled', false).html('<i class="fas fa-cash-register"></i> Checkout');
+                loadCartItems();
+                
+                // Reset the fraud status and UI on successful checkout
+                clearFraudDisplay();
+                
+                // Resume polling
+                pollForRecentScan();
+            },
+            error: function(xhr, status, error) {
+                console.error('Checkout error:', error);
+                showAlert('Checkout failed. Please try again.', 'danger');
+                $('#checkoutBtn').prop('disabled', false).html('<i class="fas fa-cash-register"></i> Checkout');
+            }
+        });
+    }
+
+    function tareScale() {
+        $('#tareBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Taring...');
+
+        $.ajax({
+            url: '/tare_scale',
+            type: 'POST',
+            dataType: 'json',
+            success: function(response) {
+                if (response.error) {
+                    showAlert('Error taring scale: ' + response.error, 'danger');
+                } else {
+                    showAlert('Scale tared successfully!', 'success');
+                }
+                $('#tareBtn').prop('disabled', false).html('<i class="fas fa-balance-scale"></i> Tare Scale');
+            },
+            error: function(xhr, status, error) {
+                console.error('Error taring scale:', error);
+                showAlert('Failed to tare scale. Please try again.', 'danger');
+                $('#tareBtn').prop('disabled', false).html('<i class="fas fa-balance-scale"></i> Tare Scale');
+            }
+        });
+    }
+    
+    // Function to clear fraud display (without DB changes)
+    function clearFraudDisplay() {
+        // Clear the UI
+        fraudDetected = false;
+        $('#scanResult').removeClass('fraud-alert');
+        $('#recentScanInfo').html('<p class="text-center text-muted">Waiting for item scan...</p>');
+        showAlert('Fraud alert cleared', 'success');
+        
+        // Resume polling
+        pollForRecentScan();
+    }
+
+    function updateCheckoutButton() {
+        if (cartItems.length === 0) {
+            $('#proceedToCheckoutBtn').addClass('disabled');
+            $('#proceedToCheckoutBtn').attr('href', '#');
+            $('#proceedToCheckoutBtn').click(function(e) {
+                e.preventDefault();
+                showAlert('Your cart is empty. Please add items before checkout.', 'warning');
+            });
+        } else {
+            $('#proceedToCheckoutBtn').removeClass('disabled');
+            $('#proceedToCheckoutBtn').attr('href', '/checkout_page');
+            $('#proceedToCheckoutBtn').off('click');
+        }
+    }
+
+    // Event listeners
+    $(document).ready(function() {
+        loadCartItems();
+        pollForRecentScan();
+
+        $('#checkoutBtn').click(checkout);
+        $('#tareBtn').click(tareScale);
+        // Add click handler for clear fraud button
+        $('#clearFraudBtn').click(function() {
+            clearFraudDisplay();
+        });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,450 @@
+{% extends "layout.html" %}
+
+{% block title %}Smart Cart - Checkout{% endblock %}
+
+{% block extra_css %}
+<style>
+    .checkout-container {
+        max-width: 900px;
+        margin: 0 auto;
+    }
+    .items-section {
+        margin-bottom: 30px;
+    }
+    .summary-section {
+        margin-bottom: 30px;
+    }
+    .cart-item {
+        padding: 15px;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        justify-content: space-between;
+    }
+    .cart-item:last-child {
+        border-bottom: none;
+    }
+    .cart-item-details {
+        flex-grow: 1;
+    }
+    .cart-item-price {
+        font-weight: bold;
+        min-width: 120px;
+        text-align: right;
+    }
+    .discount-badge {
+        background-color: #28a745;
+        color: white;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        margin-left: 8px;
+    }
+    .original-price {
+        text-decoration: line-through;
+        color: #6c757d;
+        font-size: 0.9rem;
+        margin-right: 8px;
+    }
+    .discounted-price {
+        color: #28a745;
+        font-weight: bold;
+    }
+    .summary-table {
+        width: 100%;
+    }
+    .summary-table td {
+        padding: 8px 0;
+    }
+    .summary-table td:last-child {
+        text-align: right;
+        font-weight: bold;
+    }
+    .summary-discount {
+        color: #28a745;
+    }
+    .summary-total {
+        border-top: 2px solid #ddd;
+        font-size: 1.2rem;
+    }
+    .checkout-btn {
+        padding: 12px 30px;
+        font-size: 1.1rem;
+    }
+    .back-to-cart {
+        margin-right: 15px;
+    }
+    .savings-highlight {
+        background-color: #d4edda;
+        border: 1px solid #c3e6cb;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 20px;
+        text-align: center;
+    }
+    .savings-amount {
+        font-size: 1.3rem;
+        font-weight: bold;
+        color: #28a745;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="alerts"></div>
+
+<div class="checkout-container">
+    <h2 class="mb-4"><i class="fas fa-shopping-cart"></i> Checkout</h2>
+    
+    <!-- Savings Highlight (shown when discounts are applied) -->
+    <div id="savingsHighlight" class="savings-highlight" style="display: none;">
+        <i class="fas fa-tags text-success"></i>
+        <strong>Congratulations!</strong> You're saving <span id="savingsAmount" class="savings-amount">$0.00</span> with discounts!
+    </div>
+    
+    <!-- Items Section -->
+    <div class="card items-section">
+        <div class="card-header bg-primary text-white">
+            <i class="fas fa-shopping-basket"></i> Your Items
+        </div>
+        <div class="card-body">
+            <div id="cartItems">
+                <div class="text-center py-3">
+                    <i class="fas fa-spinner fa-spin fa-2x"></i>
+                    <p class="mt-2">Loading cart items...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Order Summary Section -->
+    <div class="card summary-section">
+        <div class="card-header bg-primary text-white">
+            <i class="fas fa-file-invoice-dollar"></i> Order Summary
+        </div>
+        <div class="card-body">
+            <table class="summary-table">
+                <tr>
+                    <td>Subtotal:</td>
+                    <td id="subtotal">$0.00</td>
+                </tr>
+                <tr id="discountRow" style="display: none;" class="summary-discount">
+                    <td>Discount:</td>
+                    <td id="discount">-$0.00</td>
+                </tr>
+                <tr>
+                    <td>Tax (7%):</td>
+                    <td id="tax">$0.00</td>
+                </tr>
+                <tr class="summary-total">
+                    <td>Total:</td>
+                    <td id="total">$0.00</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Actions -->
+    <div class="text-center mb-5">
+        <a href="/" class="btn btn-secondary back-to-cart">
+            <i class="fas fa-arrow-left"></i> Back to Cart
+        </a>
+        <button id="confirmCheckoutBtn" class="btn btn-success checkout-btn">
+            <i class="fas fa-check-circle"></i> Confirm Checkout
+        </button>
+    </div>
+</div>
+
+<!-- Payment Complete Modal -->
+<div class="modal fade" id="checkoutCompleteModal" tabindex="-1" aria-labelledby="checkoutCompleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="checkoutCompleteModalLabel"><i class="fas fa-check-circle"></i> Checkout Successful</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center">
+                <div class="mb-4">
+                    <i class="fas fa-check-circle text-success" style="font-size: 4rem;"></i>
+                </div>
+                <h4>Thank You for Your Purchase!</h4>
+                <p id="checkoutMessage">Your order has been processed successfully.</p>
+                <div id="savingsMessage" style="display: none;" class="alert alert-success">
+                    <i class="fas fa-piggy-bank"></i> <strong>You saved <span id="finalSavings">$0.00</span> with discounts!</strong>
+                </div>
+                <p id="receiptNumber">Receipt #: <span class="fw-bold"></span></p>
+            </div>
+            <div class="modal-footer justify-content-center">
+                <button type="button" class="btn btn-primary" id="finishShoppingBtn">Continue Shopping</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Global variables
+    let cartItems = [];
+    let cartTotal = 0;
+    let discountInfo = {
+        applied: false,
+        savings: 0,
+        originalTotal: 0
+    };
+    
+    // Load cart items when the page loads
+    $(document).ready(function() {
+        loadCartItems();
+        
+        // Confirm checkout button
+        $('#confirmCheckoutBtn').click(function() {
+            processCheckout();
+        });
+        
+        // Finish shopping button
+        $('#finishShoppingBtn').click(function() {
+            window.location.href = '/welcome';
+        });
+    });
+    
+    // Load cart items
+    function loadCartItems() {
+    console.log("Starting to load cart items...");
+    
+    $.ajax({
+        url: '/get_cart_items_with_discounts',
+        type: 'GET',
+        dataType: 'json',
+        timeout: 10000, // 10 second timeout
+        success: function(response) {
+            console.log("Response received:", response);
+            
+            if (response.error) {
+                showAlert('Error loading cart items: ' + response.error, 'danger');
+                return;
+            }
+            
+            cartItems = response.items;
+            cartTotal = parseFloat(response.total) || 0;
+            
+            // Set discount information
+            discountInfo = {
+                applied: response.discount_applied || false,
+                savings: parseFloat(response.total_savings) || 0,
+                originalTotal: parseFloat(response.original_total) || cartTotal
+            };
+            
+            console.log("Cart data loaded:", cartItems, "Total:", cartTotal, "Discount info:", discountInfo);
+            
+            updateCartUI();
+            updateSummary();
+        },
+        error: function(xhr, status, error) {
+            console.error('AJAX Error Details:');
+            console.error('Status:', status);
+            console.error('Error:', error);
+            console.error('Response Text:', xhr.responseText);
+            console.error('Status Code:', xhr.status);
+            
+            // Fallback to original endpoint
+            console.log("Falling back to original endpoint...");
+            loadCartItemsFallback();
+        }
+    });
+}
+
+// Fallback function using original endpoint
+function loadCartItemsFallback() {
+    $.ajax({
+        url: '/get_cart_items',
+        type: 'GET',
+        dataType: 'json',
+        success: function(response) {
+            console.log("Fallback response:", response);
+            
+            if (response.error) {
+                showAlert('Error loading cart items: ' + response.error, 'danger');
+                return;
+            }
+            
+            cartItems = response.items;
+            cartTotal = parseFloat(response.total) || 0;
+            
+            // No discount info from original endpoint
+            discountInfo = {
+                applied: false,
+                savings: 0,
+                originalTotal: cartTotal
+            };
+            
+            console.log("Fallback cart data loaded:", cartItems, "Total:", cartTotal);
+            
+            updateCartUI();
+            updateSummary();
+        },
+        error: function(xhr, status, error) {
+            console.error('Fallback also failed:', error);
+            showAlert('Failed to load cart items. Please refresh the page.', 'danger');
+            $('#cartItems').html('<p class="text-center text-danger">Failed to load cart items. Please refresh the page.</p>');
+        }
+    });
+}
+    
+    // Check for discount information in cart items
+    function checkForDiscounts() {
+        let totalSavings = 0;
+        let originalTotal = 0;
+        let hasDiscounts = false;
+        
+        cartItems.forEach(item => {
+            if (item.original_price && item.discounted_price) {
+                hasDiscounts = true;
+                totalSavings += (parseFloat(item.original_price) - parseFloat(item.discounted_price));
+                originalTotal += parseFloat(item.original_price);
+            } else {
+                originalTotal += parseFloat(item.price);
+            }
+        });
+        
+        discountInfo = {
+            applied: hasDiscounts,
+            savings: totalSavings,
+            originalTotal: originalTotal
+        };
+        
+        console.log("Discount info:", discountInfo);
+    }
+    
+    // Update cart UI with discount display
+    function updateCartUI() {
+        if (cartItems.length === 0) {
+            $('#cartItems').html('<p class="text-center text-muted">Your cart is empty</p>');
+            $('#confirmCheckoutBtn').prop('disabled', true);
+            return;
+        }
+        
+        let html = '';
+        cartItems.forEach(item => {
+            let priceHtml = '';
+            
+            // Check if item has discount
+            if (item.original_price && item.discounted_price && item.discount_percent) {
+                priceHtml = `
+                    <span class="original-price">${formatCurrency(item.original_price)}</span>
+                    <span class="discounted-price">${formatCurrency(item.discounted_price)}</span>
+                    <span class="discount-badge">${item.discount_percent}% OFF</span>
+                `;
+            } else {
+                priceHtml = formatCurrency(item.price);
+            }
+            
+            html += `
+                <div class="cart-item">
+                    <div class="cart-item-details">
+                        <h6 class="mb-0">${item.product_name}</h6>
+                        <small class="text-muted">
+                            ${item.is_grocery ? 'Weight: ' + (item.weight || '0') + 'g' : ''}
+                        </small>
+                    </div>
+                    <div class="cart-item-price">
+                        ${priceHtml}
+                    </div>
+                </div>
+            `;
+        });
+        
+        $('#cartItems').html(html);
+        
+        // Show savings highlight if discounts are applied
+        if (discountInfo.applied) {
+            $('#savingsAmount').text(formatCurrency(discountInfo.savings));
+            $('#savingsHighlight').show();
+        } else {
+            $('#savingsHighlight').hide();
+        }
+    }
+    
+    // Update order summary with discount information
+    function updateSummary() {
+        const subtotal = discountInfo.applied ? discountInfo.originalTotal : cartTotal;
+        const discount = discountInfo.applied ? discountInfo.savings : 0;
+        const discountedSubtotal = subtotal - discount;
+        const taxRate = 0.07; // 7% tax
+        
+        // Calculate tax on discounted amount
+        const tax = parseFloat((discountedSubtotal * taxRate).toFixed(2));
+        const total = parseFloat((discountedSubtotal + tax).toFixed(2));
+        
+        console.log("Summary calculation - Original:", subtotal, "Discount:", discount, "After discount:", discountedSubtotal, "Tax:", tax, "Total:", total);
+        
+        // Update summary table
+        $('#subtotal').text(formatCurrency(subtotal));
+        
+        if (discountInfo.applied) {
+            $('#discount').text('-' + formatCurrency(discount));
+            $('#discountRow').show();
+        } else {
+            $('#discountRow').hide();
+        }
+        
+        $('#tax').text(formatCurrency(tax));
+        $('#total').text(formatCurrency(total));
+    }
+    
+    // Improved formatCurrency function
+    function formatCurrency(value) {
+        const numValue = parseFloat(parseFloat(value).toFixed(2)) || 0;
+        
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD',
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(numValue);
+    }
+    
+    // Process checkout
+    function processCheckout() {
+        // Disable checkout button
+        $('#confirmCheckoutBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Processing...');
+        
+        $.ajax({
+            url: '/checkout',
+            type: 'POST',
+            dataType: 'json',
+            success: function(response) {
+                if (response.error) {
+                    showAlert('Checkout error: ' + response.error, 'danger');
+                    $('#confirmCheckoutBtn').prop('disabled', false).html('<i class="fas fa-check-circle"></i> Confirm Checkout');
+                    return;
+                }
+                
+                console.log("Checkout response:", response);
+                
+                // Generate a random receipt number
+                const receiptNumber = 'SC-' + Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
+                $('#receiptNumber span').text(receiptNumber);
+                
+                // Update checkout message
+                $('#checkoutMessage').text(response.message || 'Your order has been processed successfully.');
+                
+                // Show savings information if discount was applied
+                if (response.discount_applied && response.total_savings) {
+                    $('#finalSavings').text(formatCurrency(response.total_savings));
+                    $('#savingsMessage').show();
+                } else {
+                    $('#savingsMessage').hide();
+                }
+                
+                // Show success modal
+                $('#checkoutCompleteModal').modal('show');
+            },
+            error: function(xhr, status, error) {
+                console.error('Checkout error:', error);
+                showAlert('Checkout failed. Please try again.', 'danger');
+                $('#confirmCheckoutBtn').prop('disabled', false).html('<i class="fas fa-check-circle"></i> Confirm Checkout');
+            }
+        });
+    }
+</script>
+{% endblock %}

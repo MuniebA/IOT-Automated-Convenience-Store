@@ -1,0 +1,1573 @@
+{% extends "layout.html" %}
+
+{% block title %}Smart Cart - Analytics{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Analytics Dashboard Styles */
+    .stats-card {
+        background-color: #fff;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s;
+    }
+    .stats-card:hover {
+        transform: translateY(-5px);
+    }
+    .stats-icon {
+        font-size: 2rem;
+        margin-bottom: 15px;
+    }
+    .stats-value {
+        font-size: 2rem;
+        font-weight: bold;
+    }
+    .stats-label {
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+    .chart-container {
+        height: 300px;
+    }
+    
+    /* Session Styles */
+    .session-card {
+        border-radius: 10px;
+        border: none;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        transition: transform 0.2s;
+        margin-bottom: 20px;
+    }
+    .session-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+    }
+    .session-header {
+        background: linear-gradient(135deg, #4CAF50, #2E7D32);
+        color: white;
+        border-radius: 10px 10px 0 0;
+        padding: 15px;
+    }
+    .session-active {
+        background: linear-gradient(135deg, #2196F3, #0D47A1);
+    }
+    .session-abandoned {
+        background: linear-gradient(135deg, #F44336, #B71C1C);
+    }
+    .session-body {
+        padding: 20px;
+    }
+    .badge-fraud {
+        background-color: #F44336;
+        color: white;
+        font-size: 0.75rem;
+        padding: 5px 8px;
+        border-radius: 12px;
+    }
+    .session-details {
+        display: flex;
+        justify-content: space-between;
+        border-bottom: 1px solid #eee;
+        padding: 8px 0;
+    }
+    .session-details:last-child {
+        border-bottom: none;
+    }
+    .filter-form {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+    }
+    
+    /* Customer Styles */
+    .customer-card {
+        background-color: #fff;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        margin-bottom: 15px;
+        transition: transform 0.2s;
+        overflow: hidden;
+    }
+    .customer-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+    }
+    .customer-header {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .customer-body {
+        padding: 15px;
+    }
+    .customer-detail {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid #f5f5f5;
+    }
+    .customer-detail:last-child {
+        border-bottom: none;
+    }
+    
+    /* Tab Styles */
+    .analytics-tabs {
+        margin-bottom: 20px;
+    }
+    .analytics-tabs .nav-link {
+        border-radius: 10px;
+        padding: 12px 20px;
+        font-weight: 500;
+        color: #495057;
+        background-color: #f8f9fa;
+        margin-right: 10px;
+        transition: all 0.2s;
+    }
+    .analytics-tabs .nav-link:hover {
+        background-color: #e9ecef;
+    }
+    .analytics-tabs .nav-link.active {
+        background-color: #4CAF50;
+        color: white;
+    }
+    .tab-content {
+        padding: 20px 0;
+    }
+    
+    /* Search/Filter Bar */
+    .search-bar {
+        margin-bottom: 20px;
+    }
+    .search-input {
+        border-radius: 30px;
+        padding: 10px 20px;
+        border: 1px solid #ddd;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+    .filter-dropdown {
+        border-radius: 30px;
+        padding: 10px 20px;
+        border: 1px solid #ddd;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="alerts"></div>
+
+<h2 class="mb-4"><i class="fas fa-chart-line"></i> Smart Cart Analytics Dashboard</h2>
+
+<!-- Analytics Tabs -->
+<ul class="nav nav-pills analytics-tabs" id="analyticsTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="dashboard-tab" data-bs-toggle="tab" data-bs-target="#dashboard" type="button" role="tab" aria-controls="dashboard" aria-selected="true">
+            <i class="fas fa-tachometer-alt"></i> Dashboard
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="sessions-tab" data-bs-toggle="tab" data-bs-target="#sessions" type="button" role="tab" aria-controls="sessions" aria-selected="false">
+            <i class="fas fa-history"></i> Sessions
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="customers-tab" data-bs-toggle="tab" data-bs-target="#customers" type="button" role="tab" aria-controls="customers" aria-selected="false">
+            <i class="fas fa-users"></i> Customers
+        </button>
+    </li>
+</ul>
+
+<!-- Tab Content -->
+<div class="tab-content" id="analyticsTabContent">
+    <!-- Dashboard Tab -->
+    <div class="tab-pane fade show active" id="dashboard" role="tabpanel" aria-labelledby="dashboard-tab">
+        <!-- Stats Cards -->
+        <div class="row mb-4">
+            <div class="col-md-3 mb-3">
+                <div class="stats-card p-4 text-center">
+                    <div class="stats-icon text-primary">
+                        <i class="fas fa-money-bill-wave"></i>
+                    </div>
+                    <div class="stats-value" id="totalSales">$0.00</div>
+                    <div class="stats-label">Total Sales</div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="stats-card p-4 text-center">
+                    <div class="stats-icon text-success">
+                        <i class="fas fa-shopping-cart"></i>
+                    </div>
+                    <div class="stats-value" id="transactionCount">0</div>
+                    <div class="stats-label">Transactions</div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="stats-card p-4 text-center">
+                    <div class="stats-icon text-info">
+                        <i class="fas fa-receipt"></i>
+                    </div>
+                    <div class="stats-value" id="avgTransaction">$0.00</div>
+                    <div class="stats-label">Average Transaction</div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="stats-card p-4 text-center">
+                    <div class="stats-icon text-warning">
+                        <i class="fas fa-user-friends"></i>
+                    </div>
+                    <div class="stats-value" id="customerCount">0</div>
+                    <div class="stats-label">Customers</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Top Products Chart -->
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <i class="fas fa-award"></i> Top Products
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container" id="topProductsChart">
+                            <div class="text-center py-5">
+                                <i class="fas fa-spinner fa-spin fa-2x"></i>
+                                <p class="mt-2">Loading chart data...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Fraud Events Chart -->
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-header bg-danger text-white">
+                        <i class="fas fa-exclamation-triangle"></i> Fraud Events
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container" id="fraudEventsChart">
+                            <div class="text-center py-5">
+                                <i class="fas fa-spinner fa-spin fa-2x"></i>
+                                <p class="mt-2">Loading chart data...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <!-- Session Statistics Chart -->
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <i class="fas fa-chart-bar"></i> Session Statistics
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container" id="sessionStatsChart">
+                            <div class="text-center py-5">
+                                <i class="fas fa-spinner fa-spin fa-2x"></i>
+                                <p class="mt-2">Loading chart data...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Daily Transactions Chart -->
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-header bg-info text-white">
+                        <i class="fas fa-chart-line"></i> Daily Transactions
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container" id="dailyTransactionsChart">
+                            <div class="text-center py-5">
+                                <i class="fas fa-spinner fa-spin fa-2x"></i>
+                                <p class="mt-2">Loading chart data...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Sessions Tab -->
+    <div class="tab-pane fade" id="sessions" role="tabpanel" aria-labelledby="sessions-tab">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <i class="fas fa-history"></i> Shopping Sessions
+            </div>
+            <div class="card-body">
+                <!-- Filter Form -->
+                <div class="filter-form mb-4">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="customerFilter">Customer</label>
+                                <input type="text" class="form-control" id="customerFilter" placeholder="Filter by customer">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="statusFilter">Status</label>
+                                <select class="form-control" id="statusFilter">
+                                    <option value="">All</option>
+                                    <option value="active">Active</option>
+                                    <option value="completed">Completed</option>
+                                    <option value="abandoned">Abandoned</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="dateFilter">Date</label>
+                                <input type="date" class="form-control" id="dateFilter">
+                            </div>
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <button id="applyFilters" class="btn btn-primary me-2">Apply Filters</button>
+                            <button id="resetFilters" class="btn btn-secondary">Reset</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Sessions Grid -->
+                <div id="sessionsContainer">
+                    <div class="text-center py-4">
+                        <i class="fas fa-spinner fa-spin fa-2x"></i>
+                        <p class="mt-2">Loading sessions...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Customers Tab -->
+    <div class="tab-pane fade" id="customers" role="tabpanel" aria-labelledby="customers-tab">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <i class="fas fa-users"></i> Customer Management
+            </div>
+            <div class="card-body">
+                <!-- Search Bar -->
+                <div class="search-bar">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <input type="text" class="form-control search-input" id="customerSearch" placeholder="Search customers by name...">
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-control filter-dropdown" id="customerSortBy">
+                                <option value="last_visit">Sort by Last Visit</option>
+                                <option value="name">Sort by Name</option>
+                                <option value="total_spent">Sort by Total Spent</option>
+                                <option value="session_count">Sort by Session Count</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <button class="btn btn-success w-100" data-bs-toggle="modal" data-bs-target="#addCustomerModal">
+                                <i class="fas fa-user-plus"></i> Add New Customer
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Customers List -->
+                <div id="customersContainer">
+                    <div class="text-center py-4">
+                        <i class="fas fa-spinner fa-spin fa-2x"></i>
+                        <p class="mt-2">Loading customers...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Customer Modal -->
+<div class="modal fade" id="addCustomerModal" tabindex="-1" aria-labelledby="addCustomerModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="addCustomerModalLabel"><i class="fas fa-user-plus"></i> Add New Customer</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addCustomerForm">
+                    <div class="mb-3">
+                        <label for="newCustomerName" class="form-label">Customer Name</label>
+                        <input type="text" class="form-control" id="newCustomerName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="newCustomerAddress" class="form-label">Address</label>
+                        <textarea class="form-control" id="newCustomerAddress" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="saveNewCustomerBtn">Add Customer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Customer Modal -->
+<div class="modal fade" id="editCustomerModal" tabindex="-1" aria-labelledby="editCustomerModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="editCustomerModalLabel"><i class="fas fa-user-edit"></i> Edit Customer</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editCustomerForm">
+                    <input type="hidden" id="editCustomerId">
+                    <div class="mb-3">
+                        <label for="editCustomerName" class="form-label">Customer Name</label>
+                        <input type="text" class="form-control" id="editCustomerName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editCustomerAddress" class="form-label">Address</label>
+                        <textarea class="form-control" id="editCustomerAddress" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="updateCustomerBtn">Update Customer</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Customer Details Modal -->
+<div class="modal fade" id="customerDetailsModal" tabindex="-1" aria-labelledby="customerDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title" id="customerDetailsModalLabel"><i class="fas fa-user-circle"></i> Customer Details</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="customerDetailsContent">
+                <div class="text-center py-4">
+                    <i class="fas fa-spinner fa-spin fa-2x"></i>
+                    <p class="mt-2">Loading customer details...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-success" id="startSessionBtn">Start New Session</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Session Details Modal -->
+<div class="modal fade" id="sessionDetailsModal" tabindex="-1" aria-labelledby="sessionDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="sessionDetailsModalLabel"><i class="fas fa-info-circle"></i> Session Details</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="sessionDetailsContent">
+                <div class="text-center py-4">
+                    <i class="fas fa-spinner fa-spin fa-2x"></i>
+                    <p class="mt-2">Loading session details...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="continueSessionBtn">Continue Session</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    // Chart Colors
+    const chartColors = [
+        'rgba(54, 162, 235, 0.7)',
+        'rgba(255, 99, 132, 0.7)',
+        'rgba(75, 192, 192, 0.7)',
+        'rgba(255, 206, 86, 0.7)',
+        'rgba(153, 102, 255, 0.7)',
+        'rgba(255, 159, 64, 0.7)',
+        'rgba(199, 199, 199, 0.7)',
+        'rgba(83, 102, 255, 0.7)',
+        'rgba(40, 159, 64, 0.7)',
+        'rgba(210, 199, 199, 0.7)'
+    ];
+
+    // Global chart instances
+    let topProductsChart = null;
+    let fraudEventsChart = null;
+    let sessionStatsChart = null;
+    let dailyTransactionsChart = null;
+
+    // Function to load analytics data
+    function loadAnalyticsData() {
+        $.ajax({
+            url: '/get_analytics_data',
+            type: 'GET',
+            dataType: 'json',
+            success: function(response) {
+                console.log("Analytics data received:", response);
+                if (response.error) {
+                    showAlert('Error loading analytics data: ' + response.error, 'danger');
+                    return;
+                }
+
+                // Update stats cards
+                $('#totalSales').text(formatCurrency(response.total_sales));
+                $('#transactionCount').text(response.transaction_count);
+                $('#avgTransaction').text(formatCurrency(response.avg_transaction));
+                $('#customerCount').text(response.customer_count);
+
+                // Update charts
+                updateTopProductsChart(response.top_products);
+                updateFraudEventsChart(response.fraud_data);
+                
+                // Update session stats chart
+                if (response.session_data) {
+                    updateSessionStatsChart(response.session_data);
+                }
+                
+                // Update daily transactions chart if available
+                if (response.daily_transactions) {
+                    updateDailyTransactionsChart(response.daily_transactions);
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('Error loading analytics data:', error);
+                showAlert('Failed to load analytics data. Please try again.', 'danger');
+            }
+        });
+    }
+
+    // Function to update the Top Products chart
+    function updateTopProductsChart(data) {
+        // Prepare chart data
+        const labels = data.map(item => item.product_name);
+        const values = data.map(item => item.count);
+        
+        // If chart already exists, destroy it
+        if (topProductsChart) {
+            topProductsChart.destroy();
+        }
+
+        // Create new chart
+        const ctx = document.createElement('canvas');
+        document.getElementById('topProductsChart').innerHTML = '';
+        document.getElementById('topProductsChart').appendChild(ctx);
+
+        topProductsChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Number of Sales',
+                    data: values,
+                    backgroundColor: chartColors,
+                    borderColor: chartColors.map(color => color.replace('0.7', '1')),
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return `Sales: ${context.raw}`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Function to update the Fraud Events chart
+    function updateFraudEventsChart(data) {
+    // If chart already exists, destroy it
+    if (fraudEventsChart) {
+        fraudEventsChart.destroy();
+    }
+
+    // If no fraud data
+    if (data.length === 0) {
+        document.getElementById('fraudEventsChart').innerHTML = '<div class="text-center py-5"><p class="text-muted">No fraud events recorded</p></div>';
+        return;
+    }
+
+    // Create new chart
+    const ctx = document.createElement('canvas');
+    document.getElementById('fraudEventsChart').innerHTML = '';
+    document.getElementById('fraudEventsChart').appendChild(ctx);
+
+    // Format data for line chart - we'll use types as the x-axis
+    const labels = data.map(item => {
+        // Make the event type more readable
+        return item.event_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    });
+    const values = data.map(item => item.count);
+    
+    // Create line chart
+    fraudEventsChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Number of Fraud Events',
+                data: values,
+                backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                borderColor: 'rgba(255, 99, 132, 1)',
+                borderWidth: 2,
+                tension: 0.1,
+                fill: true,
+                pointBackgroundColor: 'rgba(255, 99, 132, 1)',
+                pointRadius: 5,
+                pointHoverRadius: 7
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: 'Number of Events'
+                    },
+                    ticks: {
+                        precision: 0,
+                        stepSize: 1
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Fraud Event Types'
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.raw;
+                            return `Count: ${value}`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+    
+    // Function to update Session Stats chart
+    function updateSessionStatsChart(data) {
+        // If chart already exists, destroy it
+        if (sessionStatsChart) {
+            sessionStatsChart.destroy();
+        }
+        
+        // Create new chart
+        const ctx = document.createElement('canvas');
+        document.getElementById('sessionStatsChart').innerHTML = '';
+        document.getElementById('sessionStatsChart').appendChild(ctx);
+        
+        // Prepare data
+        const labels = ['Active', 'Completed', 'Abandoned'];
+        const values = [
+            data.session_count - (data.completed_sessions + data.abandoned_sessions),
+            data.completed_sessions,
+            data.abandoned_sessions
+        ];
+        
+        sessionStatsChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: values,
+                    backgroundColor: [
+                        'rgba(33, 150, 243, 0.7)',  // Blue for active
+                        'rgba(76, 175, 80, 0.7)',   // Green for completed
+                        'rgba(244, 67, 54, 0.7)'    // Red for abandoned
+                    ],
+                    borderColor: [
+                        'rgba(33, 150, 243, 1)',
+                        'rgba(76, 175, 80, 1)',
+                        'rgba(244, 67, 54, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.raw;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = Math.round((value / total) * 100);
+                                return `${label}: ${value} (${percentage}%)`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    // Function to update Daily Transactions chart
+    function updateDailyTransactionsChart(data) {
+        // If chart already exists, destroy it
+        if (dailyTransactionsChart) {
+            dailyTransactionsChart.destroy();
+        }
+        
+        // Create new chart
+        const ctx = document.createElement('canvas');
+        document.getElementById('dailyTransactionsChart').innerHTML = '';
+        document.getElementById('dailyTransactionsChart').appendChild(ctx);
+        
+        // If no data
+        if (!data || data.length === 0) {
+            document.getElementById('dailyTransactionsChart').innerHTML = '<div class="text-center py-5"><p class="text-muted">No transaction data available</p></div>';
+            return;
+        }
+        
+        // Prepare data
+        const labels = data.map(item => item.date);
+        const values = data.map(item => item.count);
+        const amounts = data.map(item => item.amount);
+        
+        dailyTransactionsChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Transaction Count',
+                        data: values,
+                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 2,
+                        tension: 0.1,
+                        yAxisID: 'y',
+                        pointRadius: 4,
+                        pointBackgroundColor: 'rgba(54, 162, 235, 1)'
+                    },
+                    {
+                        label: 'Transaction Amount ($)',
+                        data: amounts,
+                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        borderWidth: 2,
+                        tension: 0.1,
+                        yAxisID: 'y1',
+                        pointRadius: 4,
+                        pointBackgroundColor: 'rgba(255, 99, 132, 1)'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: {
+                            display: true,
+                            text: 'Transaction Count'
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Amount ($)'
+                        },
+                        grid: {
+                            drawOnChartArea: false
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Function to load sessions
+    function loadSessions() {
+        // Get filter values
+        const customerFilter = $('#customerFilter').val();
+        const statusFilter = $('#statusFilter').val();
+        const dateFilter = $('#dateFilter').val();
+        
+        $('#sessionsContainer').html(`
+            <div class="text-center py-4">
+                <i class="fas fa-spinner fa-spin fa-2x"></i>
+                <p class="mt-2">Loading sessions...</p>
+            </div>
+        `);
+        
+        $.ajax({
+            url: '/get_sessions',
+            type: 'GET',
+            data: {
+                customer: customerFilter,
+                status: statusFilter,
+                date: dateFilter
+            },
+            dataType: 'json',
+            success: function(response) {
+                if (response.error) {
+                    showAlert('Error loading sessions: ' + response.error, 'danger');
+                    $('#sessionsContainer').html('<p class="text-center text-muted">Failed to load sessions</p>');
+                    return;
+                }
+                
+                displaySessions(response.sessions);
+            },
+            error: function(xhr, status, error) {
+                console.error('Error loading sessions:', error);
+                showAlert('Failed to load sessions. Please try again.', 'danger');
+                $('#sessionsContainer').html('<p class="text-center text-muted">Failed to load sessions</p>');
+            }
+        });
+    }
+    
+    // Function to display sessions
+    function displaySessions(sessions) {
+        if (!sessions || sessions.length === 0) {
+            $('#sessionsContainer').html('<p class="text-center text-muted">No sessions found</p>');
+            return;
+        }
+        
+        let html = '';
+        sessions.forEach(session => {
+            // Determine card header class based on status
+            let headerClass = '';
+            if (session.status === 'active') {
+                headerClass = 'session-active';
+            } else if (session.status === 'abandoned') {
+                headerClass = 'session-abandoned';
+            }
+            
+            // Format dates
+            const startTime = new Date(session.start_time).toLocaleString();
+            const endTime = session.end_time ? new Date(session.end_time).toLocaleString() : 'In progress';
+            
+            // Calculate session duration
+            let duration = 'In progress';
+            if (session.end_time) {
+                const end = new Date(session.end_time);
+                const start = new Date(session.start_time);
+                const durationMs = end - start;
+                const minutes = Math.floor(durationMs / 60000);
+                const seconds = Math.floor((durationMs % 60000) / 1000);
+                duration = `${minutes} min ${seconds} sec`;
+            }
+            
+            html += `
+                <div class="session-card">
+                    <div class="session-header ${headerClass}">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">Session #${session.id} - ${session.customer_name}</h5>
+                            <span class="badge bg-light text-dark">${session.status.toUpperCase()}</span>
+                        </div>
+                    </div>
+                    <div class="session-body">
+                        <div class="session-details">
+                            <span>Customer:</span>
+                            <span>${session.customer_name}</span>
+                        </div>
+                        <div class="session-details">
+                            <span>Start Time:</span>
+                            <span>${startTime}</span>
+                        </div>
+                        <div class="session-details">
+                            <span>End Time:</span>
+                            <span>${endTime}</span>
+                        </div>
+                        <div class="session-details">
+                            <span>Duration:</span>
+                            <span>${duration}</span>
+                        </div>
+                        <div class="session-details">
+                            <span>Total Amount:</span>
+                            <span>${formatCurrency(session.total_amount)}</span>
+                        </div>
+                        <div class="session-details">
+                            <span>Fraud Alerts:</span>
+                            <span>
+                                ${session.fraud_alerts > 0 ? 
+                                  `<span class="badge badge-fraud">${session.fraud_alerts}</span>` : 
+                                  '0'}
+                            </span>
+                        </div>
+                        <div class="mt-3">
+                            <button class="btn btn-sm btn-info" onclick="viewSessionDetails(${session.id})">
+                                <i class="fas fa-info-circle"></i> View Details
+                            </button>
+                            ${session.status === 'active' ? 
+                              `<button class="btn btn-sm btn-success ms-2" onclick="continueSession(${session.id})">
+                                 <i class="fas fa-play"></i> Continue
+                               </button>` : 
+                              ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        $('#sessionsContainer').html(html);
+    }
+    
+    // Function to load customers
+    function loadCustomers() {
+        const searchTerm = $('#customerSearch').val();
+        const sortBy = $('#customerSortBy').val();
+        
+        $('#customersContainer').html(`
+            <div class="text-center py-4">
+                <i class="fas fa-spinner fa-spin fa-2x"></i>
+                <p class="mt-2">Loading customers...</p>
+            </div>
+        `);
+        
+        $.ajax({
+            url: '/get_customers',
+            type: 'GET',
+            data: {
+                search: searchTerm,
+                sort_by: sortBy
+            },
+            dataType: 'json',
+            success: function(response) {
+                if (response.error) {
+                    showAlert('Error loading customers: ' + response.error, 'danger');
+                    $('#customersContainer').html('<p class="text-center text-muted">Failed to load customers</p>');
+                    return;
+                }
+                
+                displayCustomers(response.customers);
+            },
+            error: function(xhr, status, error) {
+                console.error('Error loading customers:', error);
+                showAlert('Failed to load customers. Please try again.', 'danger');
+                $('#customersContainer').html('<p class="text-center text-muted">Failed to load customers</p>');
+            }
+        });
+    }
+    
+    // Function to display customers
+    function displayCustomers(customers) {
+        if (!customers || customers.length === 0) {
+            $('#customersContainer').html('<p class="text-center text-muted">No customers found</p>');
+            return;
+        }
+        
+        let html = '';
+        customers.forEach(customer => {
+            // Format date
+            const lastVisit = new Date(customer.last_visit).toLocaleString();
+            
+            html += `
+                <div class="customer-card">
+                    <div class="customer-header">
+                        <h5 class="mb-0">${customer.name}</h5>
+                        <div>
+                            <button class="btn btn-sm btn-info me-2" onclick="viewCustomerDetails(${customer.id})">
+                                <i class="fas fa-eye"></i> Details
+                            </button>
+                            <button class="btn btn-sm btn-primary me-2" onclick="editCustomer(${customer.id}, '${customer.name}', '${customer.address || ''}')">
+                                <i class="fas fa-edit"></i> Edit
+                            </button>
+                            <button class="btn btn-sm btn-success" onclick="startSessionForCustomer(${customer.id})">
+                                <i class="fas fa-shopping-cart"></i> Shop
+                            </button>
+                        </div>
+                    </div>
+                    <div class="customer-body">
+                        <div class="customer-detail">
+                            <span><i class="fas fa-map-marker-alt"></i> Address:</span>
+                            <span>${customer.address || 'Not provided'}</span>
+                        </div>
+                        <div class="customer-detail">
+                            <span><i class="fas fa-clock"></i> Last Visit:</span>
+                            <span>${lastVisit}</span>
+                        </div>
+                        <div class="customer-detail">
+                            <span><i class="fas fa-shopping-bag"></i> Total Sessions:</span>
+                            <span>${customer.session_count || 0}</span>
+                        </div>
+                        <div class="customer-detail">
+                            <span><i class="fas fa-money-bill-wave"></i> Total Spent:</span>
+                            <span>${formatCurrency(customer.total_spent || 0)}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        $('#customersContainer').html(html);
+    }
+    
+    // Function to view session details
+    function viewSessionDetails(sessionId) {
+        // Show the modal
+        $('#sessionDetailsModal').modal('show');
+        
+        // Load session details
+        $.ajax({
+            url: '/get_session_details',
+            type: 'GET',
+            data: {
+                session_id: sessionId
+            },
+            dataType: 'json',
+            success: function(response) {
+                if (response.error) {
+                    $('#sessionDetailsContent').html(`<div class="alert alert-danger">${response.error}</div>`);
+                    return;
+                }
+                
+                const session = response.session;
+                const items = response.items;
+                const fraud_logs = response.fraud_logs;
+                
+                // Format dates
+                const startTime = new Date(session.start_time).toLocaleString();
+                const endTime = session.end_time ? new Date(session.end_time).toLocaleString() : 'In progress';
+                
+                // Update modal title
+                $('#sessionDetailsModalLabel').html(`<i class="fas fa-info-circle"></i> Session #${session.id} Details`);
+                
+                // Create content
+                let content = `
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h5>Session Information</h5>
+                            <table class="table table-bordered">
+                                <tr>
+                                    <th>Customer:</th>
+                                    <td>${session.customer_name}</td>
+                                </tr>
+                                <tr>
+                                    <th>Status:</th>
+                                    <td><span class="badge bg-${session.status === 'active' ? 'primary' : session.status === 'completed' ? 'success' : 'danger'}">${session.status.toUpperCase()}</span></td>
+                                </tr>
+                                <tr>
+                                    <th>Start Time:</th>
+                                    <td>${startTime}</td>
+                                </tr>
+                                <tr>
+                                    <th>End Time:</th>
+                                    <td>${endTime}</td>
+                                </tr>
+                                <tr>
+                                    <th>Total Amount:</th>
+                                    <td>${formatCurrency(session.total_amount)}</td>
+                                </tr>
+                                <tr>
+                                    <th>Fraud Alerts:</th>
+                                    <td>${session.fraud_alerts}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h5>Items</h5>
+                `;
+                
+                if (items && items.length > 0) {
+                    content += `
+                        <table class="table table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>Price</th>
+                                    <th>Weight</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                    `;
+                    
+                    items.forEach(item => {
+                        content += `
+                            <tr>
+                                <td>${item.product_name}</td>
+                                <td>${formatCurrency(item.price)}</td>
+                                <td>${item.weight ? item.weight + ' g' : 'N/A'}</td>
+                            </tr>
+                        `;
+                    });
+                    
+                    content += `
+                            </tbody>
+                        </table>
+                    `;
+                } else {
+                    content += `<p class="text-muted">No items in this session</p>`;
+                }
+                
+                content += `
+                        </div>
+                    </div>
+                `;
+                
+                // Add fraud logs section if any
+                if (fraud_logs && fraud_logs.length > 0) {
+                    content += `
+                        <div class="row">
+                            <div class="col-12">
+                                <h5>Fraud Alerts</h5>
+                                <table class="table table-bordered table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Time</th>
+                                            <th>Type</th>
+                                            <th>Details</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                    `;
+                    
+                    fraud_logs.forEach(log => {
+                        const logTime = new Date(log.timestamp).toLocaleString();
+                        content += `
+                            <tr>
+                                <td>${logTime}</td>
+                                <td>${log.event_type}</td>
+                                <td>${log.details}</td>
+                            </tr>
+                        `;
+                    });
+                    
+                    content += `
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                // Update modal content
+                $('#sessionDetailsContent').html(content);
+                
+                // Show/hide continue button based on session status
+                if (session.status === 'active') {
+                    $('#continueSessionBtn').show();
+                    $('#continueSessionBtn').data('session-id', session.id);
+                } else {
+                    $('#continueSessionBtn').hide();
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('Error loading session details:', error);
+                $('#sessionDetailsContent').html(`<div class="alert alert-danger">Failed to load session details. Please try again.</div>`);
+            }
+        });
+    }
+    
+    // Function to view customer details
+    function viewCustomerDetails(customerId) {
+        // Show the modal
+        $('#customerDetailsModal').modal('show');
+        
+        // Load customer details
+        $.ajax({
+            url: '/get_customer_details',
+            type: 'GET',
+            data: {
+                customer_id: customerId
+            },
+            dataType: 'json',
+            success: function(response) {
+                if (response.error) {
+                    $('#customerDetailsContent').html(`<div class="alert alert-danger">${response.error}</div>`);
+                    return;
+                }
+                
+                const customer = response.customer;
+                const sessions = response.sessions;
+                
+                // Format dates
+                const joined = new Date(customer.created_at).toLocaleDateString();
+                const lastVisit = new Date(customer.last_visit).toLocaleString();
+                
+                // Update modal title
+                $('#customerDetailsModalLabel').html(`<i class="fas fa-user-circle"></i> ${customer.name}`);
+                
+                // Create content
+                let content = `
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h5>Customer Information</h5>
+                            <table class="table table-bordered">
+                                <tr>
+                                    <th>Name:</th>
+                                    <td>${customer.name}</td>
+                                </tr>
+                                <tr>
+                                    <th>Address:</th>
+                                    <td>${customer.address || 'Not provided'}</td>
+                                </tr>
+                                <tr>
+                                    <th>Joined On:</th>
+                                    <td>${joined}</td>
+                                </tr>
+                                <tr>
+                                    <th>Last Visit:</th>
+                                    <td>${lastVisit}</td>
+                                </tr>
+                                <tr>
+                                    <th>Total Sessions:</th>
+                                    <td>${customer.session_count || 0}</td>
+                                </tr>
+                                <tr>
+                                    <th>Total Spent:</th>
+                                    <td>${formatCurrency(customer.total_spent || 0)}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h5>Statistics</h5>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <div class="card h-100 p-3 text-center">
+                                        <h3 class="text-primary">${customer.session_count || 0}</h3>
+                                        <p class="mb-0">Total Sessions</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="card h-100 p-3 text-center">
+                                        <h3 class="text-success">${formatCurrency(customer.total_spent || 0)}</h3>
+                                        <p class="mb-0">Total Spent</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="card h-100 p-3 text-center">
+                                        <h3 class="text-info">${formatCurrency(customer.session_count > 0 ? (customer.total_spent || 0) / customer.session_count : 0)}</h3>
+                                        <p class="mb-0">Avg. Per Session</p>
+                                    </div>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <div class="card h-100 p-3 text-center">
+                                        <h3 class="text-danger">${customer.fraud_count || 0}</h3>
+                                        <p class="mb-0">Fraud Alerts</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Add session history if any
+                if (sessions && sessions.length > 0) {
+                    content += `
+                        <div class="row">
+                            <div class="col-12">
+                                <h5>Session History</h5>
+                                <div class="table-responsive">
+                                    <table class="table table-bordered table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>ID</th>
+                                                <th>Date</th>
+                                                <th>Status</th>
+                                                <th>Amount</th>
+                                                <th>Fraud</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                    `;
+                    
+                    sessions.forEach(session => {
+                        const sessionDate = new Date(session.start_time).toLocaleDateString();
+                        content += `
+                            <tr>
+                                <td>${session.id}</td>
+                                <td>${sessionDate}</td>
+                                <td><span class="badge bg-${session.status === 'active' ? 'primary' : session.status === 'completed' ? 'success' : 'danger'}">${session.status.toUpperCase()}</span></td>
+                                <td>${formatCurrency(session.total_amount)}</td>
+                                <td>${session.fraud_count || 0}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-info" onclick="viewSessionDetails(${session.id})">
+                                        <i class="fas fa-info-circle"></i>
+                                    </button>
+                                    ${session.status === 'active' ? 
+                                      `<button class="btn btn-sm btn-success ms-1" onclick="continueSession(${session.id})">
+                                         <i class="fas fa-play"></i>
+                                       </button>` : 
+                                      ''}
+                                </td>
+                            </tr>
+                        `;
+                    });
+                    
+                    content += `
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    content += `<p class="text-muted">No session history for this customer</p>`;
+                }
+                
+                // Update modal content
+                $('#customerDetailsContent').html(content);
+                
+                // Setup start session button
+                $('#startSessionBtn').data('customer-id', customer.id);
+            },
+            error: function(xhr, status, error) {
+                console.error('Error loading customer details:', error);
+                $('#customerDetailsContent').html(`<div class="alert alert-danger">Failed to load customer details. Please try again.</div>`);
+            }
+        });
+    }
+    
+    // Function to continue session
+    function continueSession(sessionId) {
+        $.ajax({
+            url: '/continue_session',
+            type: 'POST',
+            data: {
+                session_id: sessionId
+            },
+            dataType: 'json',
+            success: function(response) {
+                if (response.error) {
+                    showAlert('Error continuing session: ' + response.error, 'danger');
+                    return;
+                }
+                
+                // Redirect to shopping page
+                window.location.href = '/';
+            },
+            error: function(xhr, status, error) {
+                console.error('Error continuing session:', error);
+                showAlert('Failed to continue session. Please try again.', 'danger');
+            }
+        });
+    }
+    
+    // Function to start new session for customer
+    function startSessionForCustomer(customerId) {
+        $.ajax({
+            url: '/create_session',
+            type: 'POST',
+            data: {
+                customer_id: customerId
+            },
+            dataType: 'json',
+            success: function(response) {
+                if (response.error) {
+                    showAlert('Error creating session: ' + response.error, 'danger');
+                    return;
+                }
+                
+                // Redirect to shopping page
+                window.location.href = '/';
+            },
+            error: function(xhr, status, error) {
+                console.error('Error creating session:', error);
+                showAlert('Failed to create session. Please try again.', 'danger');
+            }
+        });
+    }
+    
+    // Function to edit customer
+    function editCustomer(id, name, address) {
+        // Populate the edit form
+        $('#editCustomerId').val(id);
+        $('#editCustomerName').val(name);
+        $('#editCustomerAddress').val(address);
+        
+        // Show the modal
+        $('#editCustomerModal').modal('show');
+    }
+    
+    // Event listeners
+    $(document).ready(function() {
+        // Load analytics data
+        loadAnalyticsData();
+        
+        // Handle tab changes
+        $('button[data-bs-toggle="tab"]').on('shown.bs.tab', function(e) {
+            const targetId = $(e.target).attr('id');
+            
+            if (targetId === 'sessions-tab') {
+                loadSessions();
+            } else if (targetId === 'customers-tab') {
+                loadCustomers();
+            }
+        });
+        
+        // Session filters
+        $('#applyFilters').click(function() {
+            loadSessions();
+        });
+        
+        $('#resetFilters').click(function() {
+            $('#customerFilter').val('');
+            $('#statusFilter').val('');
+            $('#dateFilter').val('');
+            loadSessions();
+        });
+        
+        // Customer search
+        $('#customerSearch').on('input', function() {
+            loadCustomers();
+        });
+        
+        $('#customerSortBy').change(function() {
+            loadCustomers();
+        });
+        
+        // Add customer form
+        $('#saveNewCustomerBtn').click(function() {
+            const name = $('#newCustomerName').val().trim();
+            const address = $('#newCustomerAddress').val().trim();
+            
+            if (!name) {
+                showAlert('Customer name is required', 'warning');
+                return;
+            }
+            
+            $.ajax({
+                url: '/add_customer',
+                type: 'POST',
+                data: {
+                    name: name,
+                    address: address
+                },
+                dataType: 'json',
+                success: function(response) {
+                    if (response.error) {
+                        showAlert('Error adding customer: ' + response.error, 'danger');
+                        return;
+                    }
+                    
+                    // Reset form and close modal
+                    $('#newCustomerName').val('');
+                    $('#newCustomerAddress').val('');
+                    $('#addCustomerModal').modal('hide');
+                    
+                    // Show success message and reload customers
+                    showAlert('Customer added successfully', 'success');
+                    loadCustomers();
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error adding customer:', error);
+                    showAlert('Failed to add customer. Please try again.', 'danger');
+                }
+            });
+        });
+        
+        // Update customer form
+        $('#updateCustomerBtn').click(function() {
+            const id = $('#editCustomerId').val();
+            const name = $('#editCustomerName').val().trim();
+            const address = $('#editCustomerAddress').val().trim();
+            
+            if (!name) {
+                showAlert('Customer name is required', 'warning');
+                return;
+            }
+            
+            $.ajax({
+                url: '/update_customer',
+                type: 'POST',
+                data: {
+                    customer_id: id,
+                    name: name,
+                    address: address
+                },
+                dataType: 'json',
+                success: function(response) {
+                    if (response.error) {
+                        showAlert('Error updating customer: ' + response.error, 'danger');
+                        return;
+                    }
+                    
+                    // Close modal
+                    $('#editCustomerModal').modal('hide');
+                    
+                    // Show success message and reload customers
+                    showAlert('Customer updated successfully', 'success');
+                    loadCustomers();
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error updating customer:', error);
+                    showAlert('Failed to update customer. Please try again.', 'danger');
+                }
+            });
+        });
+        
+        // Continue session from modal
+        $('#continueSessionBtn').click(function() {
+            const sessionId = $(this).data('session-id');
+            continueSession(sessionId);
+        });
+        
+        // Start session from modal
+        $('#startSessionBtn').click(function() {
+            const customerId = $(this).data('customer-id');
+            startSessionForCustomer(customerId);
+        });
+        
+        // Refresh data every 30 seconds
+        setInterval(loadAnalyticsData, 30000);
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to Smart Shopping Cart</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Animate.css for animations -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <style>
+        /* Variables */
+        :root {
+            --primary-color: #4e73df;
+            --primary-dark: #3a5ecf;
+            --secondary-color: #1cc88a;
+            --secondary-dark: #13a675;
+            --danger-color: #e74a3b;
+            --dark-color: #2e3951;
+            --light-color: #f8f9fc;
+        }
+        
+        /* Base styles */
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #f5f7fd, #e9edf9);
+            min-height: 100vh;
+            color: #444;
+        }
+        
+        .welcome-container {
+            max-width: 1100px;
+            margin: 40px auto;
+            padding: 40px 20px;
+        }
+        
+        /* Card styling */
+        .card {
+            border: none;
+            border-radius: 1rem;
+            box-shadow: 0 10px 25px rgba(46, 57, 81, 0.1);
+            overflow: hidden;
+            transition: transform 0.3s, box-shadow 0.3s;
+            background-color: white;
+        }
+        
+        .card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 35px rgba(46, 57, 81, 0.15);
+        }
+        
+        /* Hero section */
+        .hero-section {
+            background: linear-gradient(135deg, var(--primary-color), var(--dark-color));
+            color: white;
+            padding: 60px 30px;
+            border-radius: 1rem;
+            margin-bottom: 40px;
+            text-align: center;
+            box-shadow: 0 15px 35px rgba(46, 57, 81, 0.2);
+            position: relative;
+            overflow: hidden;
+            animation: fadeIn 1s ease-out;
+        }
+        
+        .hero-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiB2aWV3Qm94PSIwIDAgMTAwIDEwMCIgcHJlc2VydmVBc3BlY3RSYXRpbz0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSIjZmZmZmZmIiBvcGFjaXR5PSIwLjA1Ij48cGF0aCBkPSJNMTUgMTVoNXY1aC01em01IDBoNXY1aC01em01IDBoNXY1aC01em01IDBoNXY1aC01em01IDBoNXY1aC01em01IDBoNXY1aC01em01IDBoNXY1aC01em01IDBoNXY1aC01em01IDBoNXY1aC01ek0xNSAyMGg1djVoLTV6bTUgMGg1djVoLTV6bTUgMGg1djVoLTV6bTUgMGg1djVoLTV6bTUgMGg1djVoLTV6bTUgMGg1djVoLTV6bTUgMGg1djVoLTV6bTUgMGg1djVoLTV6bTUgMGg1djVoLTV6Ii8+PC9nPjwvc3ZnPg==');
+            opacity: 0.1;
+            z-index: 0;
+        }
+        
+        .hero-content {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .hero-section h1 {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+        
+        .hero-section p {
+            font-size: 1.25rem;
+            max-width: 700px;
+            margin: 0 auto 30px;
+            opacity: 0.9;
+        }
+        
+        /* Button styling */
+        .btn-light {
+            background-color: rgba(255, 255, 255, 0.9);
+            color: var(--dark-color);
+            font-weight: 600;
+            padding: 12px 30px;
+            border-radius: 50px;
+            border: none;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s;
+        }
+        
+        .btn-light:hover {
+            background-color: white;
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+        
+        .btn-start {
+            background: linear-gradient(135deg, var(--primary-color), var(--dark-color));
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            border-radius: 50px;
+            color: white;
+            transition: all 0.3s;
+            box-shadow: 0 5px 15px rgba(46, 57, 81, 0.3);
+        }
+        
+        .btn-start:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(46, 57, 81, 0.4);
+            color: white;
+        }
+        
+        /* Feature cards */
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 20px;
+            color: var(--primary-color);
+            background: linear-gradient(135deg, var(--primary-color), var(--dark-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: inline-block;
+        }
+        
+        .card-title {
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: var(--dark-color);
+        }
+        
+        /* Instructions section */
+        .instructions {
+            background-color: #ffffff;
+            border-radius: 1rem;
+            padding: 40px;
+            margin: 40px 0;
+            box-shadow: 0 10px 30px rgba(46, 57, 81, 0.1);
+            animation: fadeIn 1s ease-out;
+        }
+        
+        .instruction-step {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 30px;
+            padding-bottom: 30px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .instruction-step:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+        
+        .step-number {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, var(--primary-color), var(--dark-color));
+            color: white;
+            font-weight: bold;
+            font-size: 1.25rem;
+            border-radius: 50%;
+            margin-right: 20px;
+            flex-shrink: 0;
+            box-shadow: 0 5px 15px rgba(46, 57, 81, 0.2);
+        }
+        
+        .instruction-content {
+            flex-grow: 1;
+        }
+        
+        .instruction-content h4 {
+            margin-bottom: 10px;
+            color: var(--dark-color);
+            font-weight: 600;
+        }
+        
+        .instruction-content p {
+            color: #6e6e6e;
+            font-size: 1.05rem;
+        }
+        
+        .image-container {
+            position: relative;
+            overflow: hidden;
+            border-radius: 0.75rem;
+            margin-top: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            height: 240px;
+            background-color: #f1f5fd;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .image-placeholder {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #aaa;
+        }
+        
+        .image-placeholder i {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            color: #ccc;
+        }
+        
+        /* Modal styling */
+        #sessionModal .modal-content {
+            border-radius: 1rem;
+            border: none;
+            box-shadow: 0 15px 35px rgba(46, 57, 81, 0.2);
+            overflow: hidden;
+        }
+        
+        #sessionModal .modal-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--dark-color));
+            color: white;
+            border-radius: 1rem 1rem 0 0;
+            border-bottom: none;
+            padding: 1.5rem;
+        }
+        
+        #sessionModal .modal-body {
+            padding: 2rem;
+        }
+        
+        #sessionModal .form-control {
+            border-radius: 0.75rem;
+            padding: 0.75rem 1.25rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid #e1e5eb;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.02);
+        }
+        
+        #sessionModal .input-group-text {
+            border-radius: 0.75rem 0 0 0.75rem;
+            background: linear-gradient(135deg, var(--primary-color), var(--dark-color));
+            color: white;
+            border: none;
+        }
+        
+        #sessionModal .input-group .form-control {
+            border-radius: 0 0.75rem 0.75rem 0;
+        }
+        
+        #sessionModal .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.25rem rgba(78, 115, 223, 0.25);
+        }
+        
+        #sessionModal .btn-primary {
+            background: linear-gradient(135deg, var(--primary-color), var(--dark-color));
+            border: none;
+            border-radius: 50px;
+            padding: 12px 25px;
+            font-weight: 600;
+            box-shadow: 0 5px 15px rgba(46, 57, 81, 0.2);
+        }
+        
+        #successModal .modal-content {
+            border-radius: 1rem;
+            border: none;
+            overflow: hidden;
+            box-shadow: 0 15px 35px rgba(46, 57, 81, 0.2);
+        }
+        
+        #successModal .modal-body {
+            padding: 3rem;
+        }
+        
+        /* Utilities */
+        .section-title {
+            text-align: center;
+            margin-bottom: 2.5rem;
+            position: relative;
+        }
+        
+        .section-title h2 {
+            display: inline-block;
+            position: relative;
+            font-weight: 700;
+            color: var(--dark-color);
+            padding-bottom: 15px;
+        }
+        
+        .section-title h2::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            bottom: 0;
+            transform: translateX(-50%);
+            width: 70px;
+            height: 3px;
+            background: linear-gradient(135deg, var(--primary-color), var(--dark-color));
+            border-radius: 3px;
+        }
+        
+        .badge-feature {
+            display: inline-block;
+            background: linear-gradient(135deg, var(--primary-color), var(--dark-color));
+            color: white;
+            font-size: 0.75rem;
+            padding: 0.35rem 0.75rem;
+            border-radius: 50px;
+            margin-bottom: 1rem;
+            font-weight: 500;
+        }
+        
+        .alert {
+            border-radius: 0.5rem;
+            margin-bottom: 1.5rem;
+            border: none;
+        }
+        
+        .alert-info {
+            background-color: #edf5ff;
+            color: #0c63e4;
+        }
+        
+        .alert-success {
+            background-color: #e8f8f2;
+            color: #198754;
+        }
+        
+        .alert-danger {
+            background-color: #fff3f3;
+            color: #d9534f;
+        }
+        
+        /* NEW: Active Session Styles */
+        .active-session-card {
+            background: linear-gradient(135deg, #e3f2fd, #f3e5f5);
+            border-left: 5px solid var(--primary-color);
+            border-radius: 1rem;
+            padding: 2rem;
+            margin: 2rem 0;
+            box-shadow: 0 10px 25px rgba(46, 57, 81, 0.1);
+        }
+        
+        .session-info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+        
+        .session-detail {
+            background: rgba(255, 255, 255, 0.7);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            text-align: center;
+        }
+        
+        .session-detail-label {
+            font-size: 0.875rem;
+            color: #666;
+            margin-bottom: 0.5rem;
+        }
+        
+        .session-detail-value {
+            font-weight: 600;
+            color: var(--dark-color);
+            font-size: 1.1rem;
+        }
+        
+        /* Animations */
+        @keyframes fadeIn {
+            0% { opacity: 0; }
+            100% { opacity: 1; }
+        }
+        
+        @keyframes slideUp {
+            0% { transform: translateY(30px); opacity: 0; }
+            100% { transform: translateY(0); opacity: 1; }
+        }
+        
+        .row {
+            animation: slideUp 0.8s ease-out;
+        }
+        
+        .animate-delay-1 {
+            animation-delay: 0.2s;
+        }
+        
+        .animate-delay-2 {
+            animation-delay: 0.4s;
+        }
+        
+        .animate-delay-3 {
+            animation-delay: 0.6s;
+        }
+    </style>
+</head>
+<body>
+    <div class="welcome-container">
+        <div class="hero-section">
+            <div class="hero-content">
+                <h1><i class="fas fa-shopping-cart me-2"></i> Smart Shopping Cart</h1>
+                <p>Experience the future of shopping with RFID technology. Add products to your cart seamlessly with just a scan.</p>
+                
+                <!-- Active Session Detection Area -->
+                <div id="activeSessionInfo" style="display: none;">
+                    <div class="active-session-card animate__animated animate__fadeIn">
+                        <h4><i class="fas fa-user-check me-2"></i> Active Session Detected!</h4>
+                        <div class="session-info-grid">
+                            <div class="session-detail">
+                                <div class="session-detail-label">Customer</div>
+                                <div class="session-detail-value" id="activeCustomerName">-</div>
+                            </div>
+                            <div class="session-detail">
+                                <div class="session-detail-label">Assigned Cart</div>
+                                <div class="session-detail-value" id="activeCartId">-</div>
+                            </div>
+                        </div>
+                        <p class="text-center mb-3">
+                            <small class="text-muted"><i class="fas fa-info-circle me-1"></i> Your shopping session is ready from door access</small>
+                        </p>
+                        <form id="activeSessionForm" style="display: none;">
+                            <input type="hidden" id="activeSessionCustomerName" name="customer_name">
+                            <input type="hidden" id="activeSessionCustomerAddress" name="customer_address">
+                            <input type="hidden" id="activeSessionCloudId" name="cloud_session_id">
+                            <input type="hidden" id="activeSessionAwsCustomerId" name="aws_customer_id">
+                        </form>
+                        <div class="text-center">
+                            <button id="startActiveSessionBtn" class="btn btn-light btn-lg me-3">
+                                <i class="fas fa-play me-2"></i> Start Shopping
+                            </button>
+                            <button id="refreshActiveSessionBtn" class="btn btn-outline-light">
+                                <i class="fas fa-sync-alt me-1"></i> Refresh
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Default Manual Button (shown when no active session) -->
+                <div id="defaultStartButton">
+                    <button class="btn btn-light btn-lg" data-bs-toggle="modal" data-bs-target="#sessionModal">
+                        <i class="fas fa-play me-2"></i> Start Shopping
+                    </button>
+                    <div class="mt-3">
+                        <button id="checkForSessionBtn" class="btn btn-outline-light btn-sm">
+                            <i class="fas fa-search me-1"></i> Check for Active Session
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-md-4 animate-delay-1">
+                <div class="card h-100 text-center p-4">
+                    <div class="card-body">
+                        <span class="badge-feature">Innovative Technology</span>
+                        <div class="feature-icon">
+                            <i class="fas fa-tags"></i>
+                        </div>
+                        <h3 class="card-title">RFID Technology</h3>
+                        <p class="card-text">Simply scan RFID tags to add products to your cart instantly. No more manual input needed.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4 animate-delay-2">
+                <div class="card h-100 text-center p-4">
+                    <div class="card-body">
+                        <span class="badge-feature">Live Monitoring</span>
+                        <div class="feature-icon">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                        <h3 class="card-title">Real-time Tracking</h3>
+                        <p class="card-text">Track your shopping expenses in real-time and get a detailed breakdown of your purchases.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4 animate-delay-3">
+                <div class="card h-100 text-center p-4">
+                    <div class="card-body">
+                        <span class="badge-feature">Time-Saving</span>
+                        <div class="feature-icon">
+                            <i class="fas fa-credit-card"></i>
+                        </div>
+                        <h3 class="card-title">Seamless Checkout</h3>
+                        <p class="card-text">Skip the long checkout lines. Your cart is already calculated and ready for fast payment.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="instructions">
+            <div class="section-title">
+                <h2>How to Use the Smart Cart</h2>
+            </div>
+            
+            <div class="instruction-step">
+                <div class="step-number">1</div>
+                <div class="instruction-content">
+                    <h4>Start a Shopping Session</h4>
+                    <p>Begin by entering your name and address to start a new shopping session. If you're a returning customer, we'll find your previous information automatically.</p>
+                </div>
+            </div>
+            
+            <div class="instruction-step">
+                <div class="step-number">2</div>
+                <div class="instruction-content">
+                    <h4>Scan Products</h4>
+                    <p>Simply place your product's RFID tag near the scanner. The system will automatically detect the product and add it to your cart.</p>
+                    <div class="image-container">
+                        <div class="image-placeholder">
+                            <i class="fas fa-barcode"></i>
+                            <p>RFID scanning demonstration</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="instruction-step">
+                <div class="step-number">3</div>
+                <div class="instruction-content">
+                    <h4>Review Your Items</h4>
+                    <p>Our system will automatically validate scanned items and display them in your cart. Confirm each item before proceeding to checkout.</p>
+                </div>
+            </div>
+            
+            <div class="instruction-step">
+                <div class="step-number">4</div>
+                <div class="instruction-content">
+                    <h4>Checkout</h4>
+                    <p>When you're done shopping, proceed to checkout. The system will generate a receipt with all your purchased items.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="text-center mt-5">
+            <button class="btn btn-start" data-bs-toggle="modal" data-bs-target="#sessionModal">
+                <i class="fas fa-shopping-cart me-2"></i> Start Your Shopping Experience
+            </button>
+        </div>
+    </div>
+
+    <!-- Session Modal (unchanged) -->
+    <div class="modal fade" id="sessionModal" tabindex="-1" aria-labelledby="sessionModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="sessionModalLabel"><i class="fas fa-user-circle me-2"></i> Customer Information</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="customerForm">
+                        <div class="mb-3">
+                            <label for="customerName" class="form-label">Your Name</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-user"></i></span>
+                                <input type="text" class="form-control" id="customerName" placeholder="Enter your name" required>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="customerAddress" class="form-label">Address</label>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-map-marker-alt"></i></span>
+                                <textarea class="form-control" id="customerAddress" rows="3" placeholder="Enter your address"></textarea>
+                            </div>
+                        </div>
+                        <div id="formMessage" class="alert alert-info d-none">
+                            <i class="fas fa-info-circle me-2"></i> <span id="messageContent"></span>
+                        </div>
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-shopping-cart me-2"></i> Start Shopping
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success Modal (unchanged) -->
+    <div class="modal fade" id="successModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-body text-center p-5">
+                    <i class="fas fa-check-circle text-success" style="font-size: 5rem; margin-bottom: 1.5rem;"></i>
+                    <h3 class="mb-3">Session Created Successfully!</h3>
+                    <p class="mb-4">Your shopping session has been created. You'll be redirected to the shopping page momentarily...</p>
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        let activeSessionData = null;
+        
+        $(document).ready(function() {
+            // Check for active session on page load
+            checkForActiveSession();
+            
+            // Handle original manual form submission (unchanged)
+            $('#customerForm').submit(function(e) {
+                e.preventDefault();
+                
+                const name = $('#customerName').val().trim();
+                const address = $('#customerAddress').val().trim();
+                
+                if (!name) {
+                    showFormMessage('Please enter your name.', 'danger');
+                    $('#customerName').focus();
+                    return;
+                }
+                
+                // Disable the submit button and show loading state
+                const submitBtn = $(this).find('button[type="submit"]');
+                submitBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i> Creating Session...');
+                
+                // Call the create_session endpoint
+                $.ajax({
+                    url: '/create_session',
+                    type: 'POST',
+                    data: {
+                        name: name,
+                        address: address
+                    },
+                    dataType: 'json',
+                    success: function(response) {
+                        if (response.error) {
+                            showFormMessage(response.error, 'danger');
+                            submitBtn.prop('disabled', false).html('<i class="fas fa-shopping-cart me-2"></i> Start Shopping');
+                        } else {
+                            // If the customer was found in database
+                            if (response.returning_customer) {
+                                showFormMessage(`Welcome back, ${response.customer_name}! Creating your shopping session...`, 'success');
+                            } else {
+                                showFormMessage('Creating your shopping session...', 'success');
+                            }
+                            
+                            // Hide the input modal and show success modal
+                            $('#sessionModal').modal('hide');
+                            setTimeout(function() {
+                                $('#successModal').modal('show');
+                                
+                                // Redirect to the shopping page after a delay
+                                setTimeout(function() {
+                                    window.location.href = '/';
+                                }, 2000);
+                            }, 500);
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        showFormMessage('An error occurred. Please try again.', 'danger');
+                        console.error('Error creating session:', error);
+                        submitBtn.prop('disabled', false).html('<i class="fas fa-shopping-cart me-2"></i> Start Shopping');
+                    }
+                });
+            });
+            
+            // NEW: Handle active session start button
+            $('#startActiveSessionBtn').click(function() {
+                if (!activeSessionData) {
+                    showFormMessage('No active session data available.', 'danger');
+                    return;
+                }
+                
+                $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i> Starting...');
+                
+                $.ajax({
+                    url: '/create_session_from_active',
+                    type: 'POST',
+                    data: {
+                        customer_name: activeSessionData.customer_name,
+                        customer_address: activeSessionData.customer_address || '',
+                        cloud_session_id: activeSessionData.cloud_session_id || '',
+                        aws_customer_id: activeSessionData.customer_id || ''
+                    },
+                    dataType: 'json',
+                    success: function(response) {
+                        if (response.success) {
+                            $('#successModal').modal('show');
+                            setTimeout(function() {
+                                window.location.href = '/';
+                            }, 2000);
+                        } else {
+                            alert('Error starting session: ' + (response.error || 'Unknown error'));
+                            $('#startActiveSessionBtn').prop('disabled', false).html('<i class="fas fa-play me-2"></i> Start Shopping');
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        alert('Error starting session. Please try again.');
+                        console.error('Error starting active session:', error);
+                        $('#startActiveSessionBtn').prop('disabled', false).html('<i class="fas fa-play me-2"></i> Start Shopping');
+                    }
+                });
+            });
+            
+            // NEW: Handle refresh button
+            $('#refreshActiveSessionBtn, #checkForSessionBtn').click(function() {
+                checkForActiveSession();
+            });
+            
+            // Helper function to show form messages
+            function showFormMessage(message, type = 'info') {
+                const messageElement = $('#formMessage');
+                $('#messageContent').text(message);
+                messageElement.removeClass('d-none alert-info alert-success alert-danger')
+                    .addClass('alert-' + type)
+                    .show();
+            }
+            
+            // Add animation to feature cards on hover
+            $('.card').hover(
+                function() {
+                    $(this).find('.feature-icon').addClass('animate__animated animate__heartBeat');
+                },
+                function() {
+                    $(this).find('.feature-icon').removeClass('animate__animated animate__heartBeat');
+                }
+            );
+            
+            // Auto-check for active sessions every 15 seconds
+            setInterval(checkForActiveSession, 15000);
+        });
+        
+        // NEW: Function to check for active sessions
+        async function checkForActiveSession() {
+            try {
+                const response = await fetch('/check_active_session');
+                const data = await response.json();
+                
+                if (data.has_active_session) {
+                    activeSessionData = data.session_data;
+                    showActiveSession(data.session_data);
+                } else {
+                    hideActiveSession();
+                    console.log('No active session found:', data.error || 'No session');
+                }
+            } catch (error) {
+                console.error('Error checking for active session:', error);
+                hideActiveSession();
+            }
+        }
+        
+        // NEW: Function to show active session info
+        function showActiveSession(sessionData) {
+            // Populate session data
+            $('#activeCustomerName').text(sessionData.customer_name);
+            $('#activeCartId').text(sessionData.assigned_cart || 'cart-001');
+            
+            // Populate hidden form fields
+            $('#activeSessionCustomerName').val(sessionData.customer_name);
+            $('#activeSessionCustomerAddress').val(sessionData.customer_address || '');
+            $('#activeSessionCloudId').val(sessionData.cloud_session_id || '');
+            $('#activeSessionAwsCustomerId').val(sessionData.customer_id || '');
+            
+            // Show active session UI and hide default button
+            $('#activeSessionInfo').show();
+            $('#defaultStartButton').hide();
+        }
+        
+        // NEW: Function to hide active session info
+        function hideActiveSession() {
+            activeSessionData = null;
+            $('#activeSessionInfo').hide();
+            $('#defaultStartButton').show();
+        }
+    </script>
+</body>
+</html>

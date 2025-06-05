@@ -1,6 +1,7 @@
 import serial
 import time
 import threading
+import requests
 from database import DatabaseManager
 from config import Config
 import re
@@ -12,6 +13,7 @@ class ArduinoHandler:
         self.serial_conn = None
         self.db = DatabaseManager()
         self.running = False
+        self.flask_url = "http://localhost:5000"
         
     def connect(self):
         try:
@@ -146,11 +148,22 @@ class ArduinoHandler:
             print(f"🎯 IR sensor calibrated: threshold = {new_threshold}")
     
     def handle_card_scanned_message(self, message):
-        """Handle CARD_SCANNED: messages from Arduino"""
+        """Handle CARD_SCANNED: messages - now with name included"""
         parts = message.split(":")
         if len(parts) >= 2:
             uid = parts[1]
-            print(f"💳 Card scanned in registration mode: {uid}")
+            name = parts[2] if len(parts) > 2 else "Unknown"
+            
+            print(f"💳 Card scanned: {uid} ({name})")
+            
+            # Send both UID and name to Flask
+            self.process_rfid_with_flask(uid, name)
+    
+    def display_message(self, message):
+        """Display message to user (LCD or console)"""
+        print(f"📺 DISPLAY: {message}")
+        # TODO: Add LCD display command when ready
+        # self.send_command(f"DISPLAY:{message}")
     
     def handle_error_message(self, message):
         """Handle ERROR: messages from Arduino"""
@@ -158,6 +171,105 @@ class ArduinoHandler:
         if len(parts) >= 2:
             error_details = parts[1]
             print(f"❌ Arduino error: {error_details}")
+    
+    def process_rfid_with_flask(self, rfid_uid, user_name="Unknown"):
+        """Process RFID scan with name included"""
+        try:
+            print(f"🔗 Sending RFID {rfid_uid} ({user_name}) to Flask...")
+            
+            # Send both UID and name
+            response = requests.post(
+                f"{self.flask_url}/process_rfid_scan",
+                json={
+                    'rfid_uid': rfid_uid,
+                    'user_name': user_name
+                },
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                self.handle_flask_response(rfid_uid, result)
+            else:
+                print(f"❌ Flask endpoint error: {response.status_code}")
+                self.fallback_to_local_processing(rfid_uid)
+                
+        except Exception as e:
+            print(f"❌ Error calling Flask: {e}")
+            self.fallback_to_local_processing(rfid_uid)
+    
+    def handle_flask_response(self, rfid_uid, result):
+        """Handle response from Flask endpoint"""
+        status = result.get('status', 'unknown')
+        message = result.get('message', 'No message')
+        action = result.get('action', 'none')
+        user_name = result.get('user_name', 'Unknown')
+        cloud_processing = result.get('cloud_processing', False)
+        
+        print(f"📋 Flask response: {status} - {message}")
+        
+        if status == 'granted':
+            # Access granted - door should open
+            print(f"✅ Access granted for {user_name} ({action})")
+            self.send_command("MANUAL_OPEN")  # Open door
+            
+            # Display message on LCD/console
+            if action == 'entry':
+                assigned_cart = result.get('assigned_cart', 'cart-001')
+                self.display_message(f"Welcome {user_name}! Use {assigned_cart}")
+            else:  # exit
+                self.display_message(f"Goodbye {user_name}! Thank you!")
+                
+        elif status == 'denied':
+            # Access denied
+            print(f"❌ Access denied for {user_name}: {message}")
+            self.display_message(f"Access Denied: {message}")
+            
+        elif status == 'processing':
+            # Cloud processing in progress
+            if cloud_processing:
+                print(f"⏳ Cloud processing for {user_name}...")
+                self.display_message(f"Processing {user_name}...")
+                # Wait for cloud response (handled by MQTT client)
+            else:
+                print(f"🔄 Local processing completed for {user_name}")
+                
+        else:
+            print(f"⚠️ Unknown status: {status}")
+            self.display_message("Processing error - try again")
+    
+    def fallback_to_local_processing(self, rfid_uid):
+        """Fallback to original local processing if Flask fails"""
+        print(f"🔄 Falling back to local processing for: {rfid_uid}")
+        
+        # Use existing local database lookup
+        try:
+            # Check if user exists locally
+            conn = self.db.get_connection()
+            if conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT uid, name FROM users WHERE uid = %s", (rfid_uid,))
+                user = cursor.fetchone()
+                cursor.close()
+                conn.close()
+                
+                if user:
+                    user_name = user[1]
+                    self.db.log_access(rfid_uid, user_name, "GRANTED")
+                    self.send_command("MANUAL_OPEN")
+                    self.display_message(f"Welcome {user_name}!")
+                    print(f"✅ Local access granted: {user_name}")
+                else:
+                    self.db.log_access(rfid_uid, "Unknown", "DENIED")
+                    self.display_message("Access Denied: Unknown card")
+                    print(f"❌ Local access denied: Unknown card")
+            else:
+                print("❌ Database connection failed in fallback")
+                self.display_message("System error - try again")
+                
+        except Exception as e:
+            print(f"❌ Error in fallback processing: {e}")
+            self.display_message("System error - try again")
     
     def check_pending_commands(self):
         """Check for pending commands from web interface"""

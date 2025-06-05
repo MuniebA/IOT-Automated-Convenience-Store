@@ -1,0 +1,575 @@
+{% extends "layout.html" %}
+
+{% block title %}Smart Cart - Control{% endblock %}
+
+{% block content %}
+<div id="alerts"></div>
+
+<div class="row">
+    <!-- RFID Write Card -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <i class="fas fa-edit"></i> Write to RFID Tag
+            </div>
+            <div class="card-body">
+                <form id="writeTagForm">
+                    <div class="mb-3">
+                        <label for="productName" class="form-label">Product Name</label>
+                        <input type="text" class="form-control" id="productName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="productPrice" class="form-label">Price ($)</label>
+                        <input type="number" class="form-control" id="productPrice" step="0.01" min="0" required>
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="isGrocery">
+                        <label class="form-check-label" for="isGrocery">Is Grocery Item (requires weighing)</label>
+                    </div>
+                    <div class="mb-3">
+                        <label for="tagId" class="form-label">Tag ID (optional, for database only)</label>
+                        <input type="text" class="form-control" id="tagId">
+                        <small class="text-muted">If left empty, the system will use the next scanned tag ID</small>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-save"></i> Write to Tag
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- RFID Read/Reset Card -->
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <i class="fas fa-search"></i> Read RFID Tag
+            </div>
+            <div class="card-body">
+                <p>Place an RFID tag near the reader to read its contents.</p>
+                <button id="readTagBtn" class="btn btn-info w-100">
+                    <i class="fas fa-eye"></i> Read Tag
+                </button>
+                <div id="readResult" class="mt-3">
+                    <!-- Read results will appear here -->
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <i class="fas fa-trash"></i> Reset RFID Tag
+            </div>
+            <div class="card-body">
+                <p>Place an RFID tag near the reader to erase its contents.</p>
+                <button id="resetTagBtn" class="btn btn-danger w-100">
+                    <i class="fas fa-eraser"></i> Reset Tag
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Manual Controls Section -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <i class="fas fa-cogs"></i> Manual Controls
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <!-- Weight Sensor Controls -->
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100">
+                            <div class="card-header bg-light">
+                                <i class="fas fa-weight"></i> Weight Sensor
+                            </div>
+                            <div class="card-body">
+                                <button id="readWeightBtn" class="btn btn-outline-primary mb-2 w-100">
+                                    <i class="fas fa-balance-scale"></i> Read Weight
+                                </button>
+                                <button id="tareScaleBtn" class="btn btn-outline-secondary w-100">
+                                    <i class="fas fa-redo"></i> Tare Scale
+                                </button>
+                                <div id="weightResult" class="mt-3 text-center">
+                                    <!-- Weight results will appear here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Servo Motor Controls -->
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100">
+                            <div class="card-header bg-light">
+                                <i class="fas fa-box-open"></i> Lid Control (Servo)
+                            </div>
+                            <div class="card-body">
+                                <button id="openLidBtn" class="btn btn-outline-success mb-2 w-100">
+                                    <i class="fas fa-door-open"></i> Open Lid
+                                </button>
+                                <button id="closeLidBtn" class="btn btn-outline-danger w-100">
+                                    <i class="fas fa-door-closed"></i> Close Lid
+                                </button>
+                                <div id="lidStatus" class="mt-3 text-center">
+                                    <span class="badge bg-secondary">Status: Unknown</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Alert Controls -->
+                    <div class="col-md-6 mb-3">
+                        <div class="card h-100">
+                            <div class="card-header bg-light">
+                                <i class="fas fa-bell"></i> Alerts Control
+                            </div>
+                            <div class="card-body">
+                                <button id="triggerBuzzerBtn" class="btn btn-outline-warning mb-2 w-100">
+                                    <i class="fas fa-volume-up"></i> Trigger Buzzer
+                                </button>
+                                <button id="triggerLEDBtn" class="btn btn-outline-info w-100">
+                                    <i class="fas fa-lightbulb"></i> Toggle LED
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Control Log -->
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-header bg-light">
+                                <i class="fas fa-list"></i> Control Log
+                            </div>
+                            <div class="card-body">
+                                <div id="controlLog" style="height: 150px; overflow-y: auto; font-family: monospace; font-size: 0.8rem; background: #f8f9fa; padding: 10px; border-radius: 5px;">
+                                    <!-- Log entries will appear here -->
+                                    <div class="text-muted">Control log will appear here...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // Function to add log entry
+        function addLogEntry(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logClass = type === 'error' ? 'text-danger' : 
+                           type === 'success' ? 'text-success' : 'text-info';
+            
+            $('#controlLog').prepend(`<div class="${logClass}">[${timestamp}] ${message}</div>`);
+        }
+
+        // Write Tag Form Submission
+        $('#writeTagForm').submit(function(e) {
+            e.preventDefault();
+
+            const productName = $('#productName').val();
+            const price = $('#productPrice').val();
+            const isGrocery = $('#isGrocery').is(':checked');
+            const tagId = $('#tagId').val();
+
+            // Validate inputs
+            if (!productName || !price) {
+                showAlert('Please fill in all required fields.', 'warning');
+                return;
+            }
+
+            // Disable submit button and show loading state
+            const submitBtn = $(this).find('button[type="submit"]');
+            const originalBtnText = submitBtn.html();
+            submitBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Writing...');
+
+            $.ajax({
+                url: '/write_tag',
+                type: 'POST',
+                data: {
+                    product_name: productName,
+                    price: price,
+                    is_grocery: isGrocery,
+                    tag_id: tagId,
+                    is_control: true // Flag to indicate this is from control page
+                },
+                dataType: 'json',
+                success: function(response) {
+                    if (response.error) {
+                        showAlert('Error writing tag: ' + response.error, 'danger');
+                        addLogEntry('Error writing tag: ' + response.error, 'error');
+                    } else {
+                        showAlert('Tag written successfully! Place product on RFID reader now.', 'success');
+                        addLogEntry('Tag written successfully with data: ' + productName + ', $' + price, 'success');
+                        // Reset form
+                        $('#writeTagForm')[0].reset();
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error writing tag:', error);
+                    showAlert('Failed to write tag. Please try again.', 'danger');
+                    addLogEntry('Failed to write tag: ' + error, 'error');
+                },
+                complete: function() {
+                    submitBtn.prop('disabled', false).html(originalBtnText);
+                }
+            });
+        });
+
+        // Read Tag Button
+        $('#readTagBtn').click(function() {
+            const btn = $(this);
+            const originalBtnText = btn.html();
+            btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Reading...');
+            
+            $('#readResult').html('<div class="alert alert-info">Place your tag on the reader now...</div>');
+            addLogEntry('Reading RFID tag using control-only method...');
+
+            $.ajax({
+                url: '/read_tag_control_only',
+                type: 'POST',
+                dataType: 'json',
+                success: function(response) {
+                    if (response.error) {
+                        $('#readResult').html(`<div class="alert alert-danger">${response.error}</div>`);
+                        addLogEntry('Error reading tag: ' + response.error, 'error');
+                    } else if (response.success === false) {
+                        // Command sent but no data yet - poll for results
+                        setTimeout(pollForTagData, 2000);
+                    } else if (response.data) {
+                        // Immediate success
+                        displayTagData(response.data, response.tag_id);
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error reading tag:', error);
+                    $('#readResult').html(`<div class="alert alert-danger">Failed to read tag: ${error}</div>`);
+                    addLogEntry('Failed to read tag: ' + error, 'error');
+                    btn.prop('disabled', false).html(originalBtnText);
+                }
+            });
+
+            // Function to poll for tag data
+            function pollForTagData() {
+                $.ajax({
+                    url: '/get_latest_tag_data',
+                    type: 'GET',
+                    dataType: 'json',
+                    success: function(response) {
+                        if (response.error) {
+                            $('#readResult').html(`<div class="alert alert-danger">${response.error}</div>`);
+                            addLogEntry('Error getting tag data: ' + response.error, 'error');
+                            btn.prop('disabled', false).html(originalBtnText);
+                        } else if (response.data) {
+                            // Success - display the data
+                            displayTagData(response.data, response.tag_id);
+                            btn.prop('disabled', false).html(originalBtnText);
+                        } else {
+                            // No data yet, try again
+                            $('#readResult').html('<div class="alert alert-info">Waiting for tag data... Please place your tag on the reader.</div>');
+                            setTimeout(pollForTagData, 2000);
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        // Keep trying if we get an error
+                        setTimeout(pollForTagData, 2000);
+                    }
+                });
+            }
+
+            // Function to display tag data
+            function displayTagData(data, tagId) {
+                $('#readResult').html(`
+                    <div class="alert alert-success">
+                        <strong>Tag Read Successfully!</strong><br>
+                        <strong>Data:</strong> ${data}<br>
+                        <strong>Tag ID:</strong> ${tagId || 'Unknown'}
+                    </div>
+                `);
+                addLogEntry('Tag read successfully: ' + data, 'success');
+                btn.prop('disabled', false).html(originalBtnText);
+            }
+        });
+
+        // Reset Tag Button
+        $('#resetTagBtn').click(function() {
+            if (!confirm('Are you sure you want to reset this tag? This will erase all data.')) {
+                return;
+            }
+
+            const btn = $(this);
+            const originalBtnText = btn.html();
+            btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Resetting...');
+            addLogEntry('Resetting RFID tag...');
+
+            $.ajax({
+                url: '/reset_tag',
+                type: 'POST',
+                data: { is_control: true }, // Flag to indicate this is from control page
+                dataType: 'json',
+                success: function(response) {
+                    if (response.error) {
+                        showAlert('Error resetting tag: ' + response.error, 'danger');
+                        addLogEntry('Error resetting tag: ' + response.error, 'error');
+                    } else {
+                        showAlert('Reset command sent to Arduino. Place your tag on the reader now.', 'success');
+                        addLogEntry('Tag reset command sent successfully', 'success');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error resetting tag:', error);
+                    showAlert('Failed to reset tag. Please try again.', 'danger');
+                    addLogEntry('Failed to reset tag: ' + error, 'error');
+                },
+                complete: function() {
+                    btn.prop('disabled', false).html(originalBtnText);
+                }
+            });
+        });
+
+        // Read Weight Button
+        $('#readWeightBtn').click(function() {
+    const btn = $(this);
+    const originalBtnText = btn.html();
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Reading...');
+    
+    $('#weightResult').html('<div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div><p class="mt-2">Reading weight...</p>');
+    addLogEntry('Reading weight from load cell...');
+
+    // First initiate the weight reading
+    $.ajax({
+        url: '/read_weight_control',
+        type: 'POST',
+        dataType: 'json',
+        success: function(response) {
+            if (response.error) {
+                $('#weightResult').html(`<div class="alert alert-danger">${response.error}</div>`);
+                addLogEntry('Error reading weight: ' + response.error, 'error');
+                btn.prop('disabled', false).html(originalBtnText);
+            } else {
+                // First command sent successfully, now poll for the result
+                setTimeout(pollForWeightResult, 2000); // Wait 2 seconds before polling
+            }
+        },
+        error: function(xhr, status, error) {
+            $('#weightResult').html(`<div class="alert alert-danger">Failed to read weight: ${error}</div>`);
+            addLogEntry('Failed to read weight: ' + error, 'error');
+            btn.prop('disabled', false).html(originalBtnText);
+        }
+    });
+
+    // Function to poll for weight result
+    function pollForWeightResult() {
+        $.ajax({
+            url: '/get_latest_weight',
+            type: 'GET',
+            dataType: 'json',
+            success: function(response) {
+                if (response.error) {
+                    // If still waiting, try again after a delay
+                    if (response.error.includes('No weight readings available')) {
+                        setTimeout(pollForWeightResult, 1000); // Try again after 1 second
+                    } else {
+                        $('#weightResult').html(`<div class="alert alert-danger">${response.error}</div>`);
+                        addLogEntry('Error getting weight: ' + response.error, 'error');
+                        btn.prop('disabled', false).html(originalBtnText);
+                    }
+                } else {
+                    // Success! Display the weight
+                    $('#weightResult').html(`
+                        <div class="alert alert-success">
+                            <strong>Weight: ${response.weight.toFixed(2)} g</strong><br>
+                            <small>Measured at: ${response.timestamp}</small>
+                        </div>
+                    `);
+                    addLogEntry('Weight read successfully: ' + response.weight.toFixed(2) + ' g', 'success');
+                    btn.prop('disabled', false).html(originalBtnText);
+                }
+            },
+            error: function(xhr, status, error) {
+                if (xhr.status === 404) {
+                    // No weight readings yet, try again
+                    setTimeout(pollForWeightResult, 1000);
+                } else {
+                    $('#weightResult').html(`<div class="alert alert-danger">Failed to get weight: ${error}</div>`);
+                    addLogEntry('Failed to get weight: ' + error, 'error');
+                    btn.prop('disabled', false).html(originalBtnText);
+                }
+            }
+        });
+    }
+});
+
+        // Tare Scale Button
+        $('#tareScaleBtn').click(function() {
+            const btn = $(this);
+            const originalBtnText = btn.html();
+            btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Taring...');
+            addLogEntry('Taring scale...');
+
+            $.ajax({
+                url: '/tare_scale_control',
+                type: 'POST',
+                dataType: 'json',
+                success: function(response) {
+                    if (response.error) {
+                        showAlert('Error taring scale: ' + response.error, 'danger');
+                        addLogEntry('Error taring scale: ' + response.error, 'error');
+                    } else {
+                        showAlert('Scale tared successfully!', 'success');
+                        addLogEntry('Scale tared successfully', 'success');
+                        $('#weightResult').html('<div class="alert alert-success">Scale tared successfully!</div>');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error taring scale:', error);
+                    showAlert('Failed to tare scale. Please try again.', 'danger');
+                    addLogEntry('Failed to tare scale: ' + error, 'error');
+                },
+                complete: function() {
+                    btn.prop('disabled', false).html(originalBtnText);
+                }
+            });
+        });
+
+        // Open Lid Button
+        $('#openLidBtn').click(function() {
+            const btn = $(this);
+            const originalBtnText = btn.html();
+            btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Opening...');
+            addLogEntry('Opening lid...');
+
+            $.ajax({
+                url: '/open_lid_control',
+                type: 'POST',
+                dataType: 'json',
+                success: function(response) {
+                    if (response.error) {
+                        showAlert('Error opening lid: ' + response.error, 'danger');
+                        addLogEntry('Error opening lid: ' + response.error, 'error');
+                    } else {
+                        showAlert('Lid opened successfully!', 'success');
+                        addLogEntry('Lid opened successfully', 'success');
+                        $('#lidStatus').html('<span class="badge bg-success">Status: Open</span>');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error opening lid:', error);
+                    showAlert('Failed to open lid. Please try again.', 'danger');
+                    addLogEntry('Failed to open lid: ' + error, 'error');
+                },
+                complete: function() {
+                    btn.prop('disabled', false).html(originalBtnText);
+                }
+            });
+        });
+
+        // Close Lid Button
+        $('#closeLidBtn').click(function() {
+            const btn = $(this);
+            const originalBtnText = btn.html();
+            btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Closing...');
+            addLogEntry('Closing lid...');
+
+            $.ajax({
+                url: '/close_lid_control',
+                type: 'POST',
+                dataType: 'json',
+                success: function(response) {
+                    if (response.error) {
+                        showAlert('Error closing lid: ' + response.error, 'danger');
+                        addLogEntry('Error closing lid: ' + response.error, 'error');
+                    } else {
+                        showAlert('Lid closed successfully!', 'success');
+                        addLogEntry('Lid closed successfully', 'success');
+                        $('#lidStatus').html('<span class="badge bg-danger">Status: Closed</span>');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error closing lid:', error);
+                    showAlert('Failed to close lid. Please try again.', 'danger');
+                    addLogEntry('Failed to close lid: ' + error, 'error');
+                },
+                complete: function() {
+                    btn.prop('disabled', false).html(originalBtnText);
+                }
+            });
+        });
+
+        // Trigger Buzzer Button
+        $('#triggerBuzzerBtn').click(function() {
+            const btn = $(this);
+            const originalBtnText = btn.html();
+            btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Triggering...');
+            addLogEntry('Triggering buzzer...');
+
+            $.ajax({
+                url: '/trigger_buzzer_control',
+                type: 'POST',
+                dataType: 'json',
+                success: function(response) {
+                    if (response.error) {
+                        showAlert('Error triggering buzzer: ' + response.error, 'danger');
+                        addLogEntry('Error triggering buzzer: ' + response.error, 'error');
+                    } else {
+                        showAlert('Buzzer triggered successfully!', 'success');
+                        addLogEntry('Buzzer triggered successfully', 'success');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error triggering buzzer:', error);
+                    showAlert('Failed to trigger buzzer. Please try again.', 'danger');
+                    addLogEntry('Failed to trigger buzzer: ' + error, 'error');
+                },
+                complete: function() {
+                    setTimeout(function() {
+                        btn.prop('disabled', false).html(originalBtnText);
+                    }, 1000); // Short delay to prevent rapid repeated button presses
+                }
+            });
+        });
+
+        // Toggle LED Button
+        $('#triggerLEDBtn').click(function() {
+            const btn = $(this);
+            const originalBtnText = btn.html();
+            btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Toggling...');
+            addLogEntry('Toggling LED...');
+
+            $.ajax({
+                url: '/toggle_led_control',
+                type: 'POST',
+                dataType: 'json',
+                success: function(response) {
+                    if (response.error) {
+                        showAlert('Error toggling LED: ' + response.error, 'danger');
+                        addLogEntry('Error toggling LED: ' + response.error, 'error');
+                    } else {
+                        showAlert('LED toggled successfully!', 'success');
+                        addLogEntry('LED toggled successfully', 'success');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error toggling LED:', error);
+                    showAlert('Failed to toggle LED. Please try again.', 'danger');
+                    addLogEntry('Failed to toggle LED: ' + error, 'error');
+                },
+                complete: function() {
+                    setTimeout(function() {
+                        btn.prop('disabled', false).html(originalBtnText);
+                    }, 1000); // Short delay to prevent rapid repeated button presses
+                }
+            });
+        });
+
+        // Log initial state
+        addLogEntry('Control panel initialized');
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Shopping Cart Dashboard</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <style>
+        body {
+            padding-top: 20px;
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .card {
+            margin-bottom: 20px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+            border: none;
+            border-radius: 12px;
+            overflow: hidden;
+            transition: transform 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        .card-header {
+            font-weight: bold;
+            background: linear-gradient(135deg, #4CAF50, #2E7D32);
+            color: white;
+            padding: 15px 20px;
+            border: none;
+        }
+        .alert-fraud {
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+        .refresh-btn {
+            float: right;
+            margin-left: 10px;
+            background: rgba(255,255,255,0.2);
+            border: none;
+        }
+        .refresh-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        .total-section {
+            background-color: #e9ecef;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .cart-item {
+            border-left: 5px solid #4CAF50;
+            padding-left: 10px;
+        }
+        .fraud-alert {
+            border-left: 5px solid #dc3545;
+            padding-left: 10px;
+        }
+        .navbar {
+            background: linear-gradient(135deg, #4CAF50, #2E7D32);
+            border-radius: 12px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .navbar-brand {
+            color: white;
+            font-weight: bold;
+            font-size: 1.5rem;
+        }
+        .nav-item .btn {
+            margin-left: 10px;
+            border-radius: 30px;
+            font-weight: 500;
+            padding: 8px 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.2s;
+        }
+        .nav-item .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        .btn-groceries {
+            background-color: #FF9800;
+            border-color: #FF9800;
+            color: white;
+        }
+        .btn-groceries:hover {
+            background-color: #F57C00;
+            border-color: #F57C00;
+            color: white;
+        }
+        .table {
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .icon-header {
+            margin-right: 10px;
+        }
+        .badge {
+            padding: 6px 12px;
+            border-radius: 30px;
+            font-weight: 500;
+        }
+        .session-info {
+            background-color: rgba(255,255,255,0.1);
+            padding: 5px 15px;
+            border-radius: 30px;
+            margin-left: 15px;
+            font-size: 0.9rem;
+        }
+        .rfid-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1050;
+            max-width: 300px;
+        }
+        /* New styles for fraud alert */
+        .fraud-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1100;
+            max-width: 350px;
+            background-color: rgba(220, 53, 69, 0.95);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            animation: shake 0.5s;
+        }
+        @keyframes shake {
+            0% { transform: translateX(0) }
+            25% { transform: translateX(8px) }
+            50% { transform: translateX(-8px) }
+            75% { transform: translateX(8px) }
+            100% { transform: translateX(0) }
+        }
+        .fraud-icon {
+            font-size: 2rem;
+            margin-right: 15px;
+        }
+        .sensor-badge {
+            display: inline-block;
+            padding: 0.4rem 0.8rem;
+            margin: 0.2rem;
+            border-radius: 50px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        .badge-distance {
+            background-color: #17a2b8;
+            color: white;
+        }
+        .badge-weight {
+            background-color: #6f42c1;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Navigation Bar -->
+        <nav class="navbar navbar-expand-lg">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="/">
+                    <i class="bi bi-cart4"></i> Smart Cart
+                </a>
+                <span class="session-info">
+                    Session #1 - Current Time
+                </span>
+                <div class="ms-auto">
+                    <ul class="navbar-nav">
+                        <li class="nav-item">
+                            <a href="/groceries" class="btn btn-groceries">
+                                <i class="bi bi-basket"></i> Groceries
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="/analytics" class="btn btn-info">
+                                <i class="bi bi-graph-up"></i> Analytics
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="/control" class="btn btn-warning">
+                                <i class="bi bi-gear"></i> Control
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="/checkout" class="btn btn-primary">
+                                <i class="bi bi-credit-card"></i> Checkout
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="/new_session" class="btn btn-success">
+                                <i class="bi bi-plus-circle"></i> New Session
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+
+        <!-- System Status Alert - Will be shown when fraud is detected -->
+        <div id="fraud-alert" class="alert alert-danger mb-4 d-none">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-exclamation-triangle-fill me-3" style="font-size: 1.5rem;"></i>
+                <div>
+                    <h5 class="alert-heading mb-1">Fraud Alert!</h5>
+                    <div id="fraud-message">Potential fraud detected. Please check your cart.</div>
+                </div>
+                <button class="btn btn-outline-danger ms-auto" onclick="resetFraudAlert()">
+                    Reset Alert
+                </button>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Cart Summary -->
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-cart-check icon-header"></i> Cart Summary
+                        <button class="btn btn-sm btn-outline-light refresh-btn" onclick="location.reload()">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="total-section">
+                            <div class="row">
+                                <div class="col-6">
+                                    <h5><i class="bi bi-basket-fill"></i> Total Items:</h5>
+                                </div>
+                                <div class="col-6 text-end">
+                                    <h5 id="total-items">0</h5>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-6">
+                                    <h5><i class="bi bi-cash"></i> Total Cost:</h5>
+                                </div>
+                                <div class="col-6 text-end">
+                                    <h5 id="total-cost">RM 0.00</h5>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sensor Status Section -->
+                        <div class="mb-4">
+                            <h5><i class="bi bi-reception-4"></i> Sensor Status:</h5>
+                            <div class="d-flex flex-wrap">
+                                <div class="sensor-badge badge-distance me-2">
+                                    <i class="bi bi-rulers"></i> Distance: <span id="distance-value">-- cm</span>
+                                </div>
+                                <div class="sensor-badge badge-weight">
+                                    <i class="bi bi-speedometer"></i> Weight: <span id="weight-value">-- g</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <h5><i class="bi bi-tags"></i> Category Breakdown:</h5>
+                        <ul class="list-group" id="category-list">
+                            <!-- Categories will be dynamically added here -->
+                        </ul>
+                        
+                        <div class="d-grid gap-2 mt-4">
+                            <a href="/checkout" class="btn btn-lg btn-primary">
+                                <i class="bi bi-credit-card"></i> Proceed to Checkout
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cart Items -->
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-basket icon-header"></i> Cart Items
+                        <span class="badge bg-success" id="items-count">0</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Item</th>
+                                        <th>Category</th>
+                                        <th>Price</th>
+                                        <th>Time Added</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="cart-items">
+                                    <!-- Cart items will be dynamically added here -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="empty-cart-message" class="text-center py-5">
+                            <i class="bi bi-basket" style="font-size: 5rem; color: #e9ecef;"></i>
+                            <p class="text-muted mt-3">No items in cart. Scan RFID tags to add products!</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="rfid-notifications"></div>
+    <div id="fraud-notifications"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        // Keep track of scanned items
+        let cartItems = [];
+        let categories = {};
+        let totalCost = 0;
+        let fraudDetected = false;
+        
+        // Load items from localStorage if available
+        const savedItems = localStorage.getItem('cartItems');
+        if (savedItems) {
+            try {
+                cartItems = JSON.parse(savedItems);
+                
+                // Recalculate categories and total cost
+                cartItems.forEach(item => {
+                    const category = item.category || 'General';
+                    categories[category] = (categories[category] || 0) + 1;
+                    totalCost += item.price;
+                });
+                
+                // Update UI with saved items
+                updateCartUI();
+            } catch (e) {
+                console.error('Error loading saved cart items:', e);
+            }
+        }
+        
+        // RFID scanning variables
+        let lastCardData = null;
+        let lastCheckTime = 0;
+        let isCheckingCard = false;
+        let consecutiveErrors = 0;
+        let scanningEnabled = true;
+        let currentPage = 'dashboard';
+    
+        function checkRFID() {
+            // Don't check if scanning is disabled
+            if (!scanningEnabled) {
+                return;
+            }
+            
+            // Don't send another request if one is in progress
+            if (isCheckingCard) {
+                return;
+            }
+            
+            const now = Date.now();
+            // Limit how often we check for cards (once per 2 seconds)
+            if (now - lastCheckTime < 2000) {
+                return;
+            }
+            
+            lastCheckTime = now;
+            isCheckingCard = true;
+            
+            // Use the check_card endpoint with current page info
+            fetch('/check_card?page=' + currentPage)
+                .then(response => response.json())
+                .then(data => {
+                    isCheckingCard = false;
+                    consecutiveErrors = 0;
+                    
+                    if (data.status === "ok" && data.card_present) {
+                        // If data is included, use it directly
+                        if (data.data) {
+                            processCardData(data.data);
+                        } else {
+                            // Otherwise do a full read
+                            readCardData();
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking for card:', error);
+                    isCheckingCard = false;
+                    
+                    // Disable scanning temporarily if we get too many consecutive errors
+                    consecutiveErrors++;
+                    if (consecutiveErrors > 5) {
+                        console.warn('Too many consecutive errors, pausing scanning for 10 seconds');
+                        scanningEnabled = false;
+                        setTimeout(() => {
+                            scanningEnabled = true;
+                            consecutiveErrors = 0;
+                        }, 10000);
+                    }
+                });
+        }
+    
+        // Function to read data from a detected card
+        function readCardData() {
+            fetch('/read')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === "ok" && data.data) {
+                        processCardData(data.data);
+                    }
+                })
+                .catch(error => console.error('Error reading card:', error));
+        }
+        
+        // Process the data from a card
+        function processCardData(cardData) {
+            // Extract product data from RFID tag
+            let productData = cardData.substring(5); // Remove "DATA:" prefix
+            
+            // Check if this is the same card we just read
+            if (productData === lastCardData) {
+                return; // Skip processing the same card twice
+            }
+            
+            // Check if the data is valid (contains product name and price)
+            if (!productData.includes('#')) {
+                console.warn('Invalid card data:', productData);
+                return;
+            }
+            
+            lastCardData = productData;
+            let [productName, price] = productData.split('#');
+            
+            if (!productName || !price) {
+                console.warn('Missing product name or price in card data');
+                return;
+            }
+            
+            // Create a timestamp
+            let now = new Date();
+            let timeString = now.getHours() + ':' + 
+                            (now.getMinutes() < 10 ? '0' : '') + now.getMinutes() + ':' + 
+                            (now.getSeconds() < 10 ? '0' : '') + now.getSeconds();
+            
+            // Create a new item
+            let newItem = {
+                name: productName,
+                category: "General", // Default category
+                price: parseFloat(price),
+                time: timeString,
+                status: "Valid" // Default status
+            };
+            
+            // Add to cart
+            addItemToCart(newItem);
+        }
+    
+        // Function to add an item to the cart
+        function addItemToCart(newItem) {
+            // Check if this item is already in the cart
+            let isDuplicate = cartItems.some(item => 
+                item.name === newItem.name && 
+                item.price === newItem.price && 
+                item.time === newItem.time
+            );
+            
+            if (!isDuplicate) {
+                // Add to cart
+                cartItems.push(newItem);
+                
+                // Update categories
+                if (categories[newItem.category]) {
+                    categories[newItem.category]++;
+                } else {
+                    categories[newItem.category] = 1;
+                }
+                
+                // Update total cost
+                totalCost += newItem.price;
+                
+                // Save to localStorage to share between pages
+                localStorage.setItem('cartItems', JSON.stringify(cartItems));
+                
+                // Show notification
+                showNotification(newItem.name);
+                
+                // Update UI
+                updateCartUI();
+            }
+        }
+        
+        // Function to show notification
+        function showNotification(productName) {
+            const notification = document.createElement('div');
+            notification.className = 'alert alert-success rfid-notification';
+            notification.innerHTML = `
+                <i class="bi bi-check-circle-fill me-2"></i>
+                Added ${productName} to cart
+            `;
+            document.getElementById('rfid-notifications').appendChild(notification);
+            
+            // Remove notification after 3 seconds
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+        
+        // Function to show fraud notification
+        function showFraudNotification(fraudType) {
+            // Update the fraud alert banner
+            document.getElementById('fraud-alert').classList.remove('d-none');
+            
+            // Set appropriate message based on fraud type
+            let message = "Potential fraud detected. Please check your cart.";
+            if (fraudType === 'unscanned_item') {
+                message = "Unscanned item detected in cart! Please scan all items.";
+            } else if (fraudType === 'missing_item') {
+                message = "Item scanned but not placed in cart! Please add the item.";
+            } else if (fraudType === 'multiple_items') {
+                message = "Multiple items detected for single scan! Please scan each item separately.";
+            }
+            
+            document.getElementById('fraud-message').textContent = message;
+            
+            // Also show a popup notification
+            const notification = document.createElement('div');
+            notification.className = 'fraud-notification d-flex align-items-center';
+            notification.innerHTML = `
+                <i class="bi bi-exclamation-triangle-fill fraud-icon"></i>
+                <div>
+                    <h5 class="mb-1">Fraud Alert!</h5>
+                    <p class="mb-0">${message}</p>
+                </div>
+            `;
+            document.getElementById('fraud-notifications').appendChild(notification);
+            
+            // Remove notification after 5 seconds
+            setTimeout(() => {
+                notification.remove();
+            }, 5000);
+        }
+        
+        function resetFraudDetection() {
+    const fraudStatusAlert = document.getElementById('fraudStatusAlert');
+    
+    fraudStatusAlert.className = 'alert alert-info mt-3';
+    fraudStatusAlert.style.display = 'block';
+    fraudStatusAlert.innerHTML = '<i class="bi bi-arrow-clockwise spin me-2"></i> Resetting fraud detection...';
+    
+    // Send data to server
+    fetch('/reset_fraud', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Update status alert
+        if (data.status === "success") {
+            fraudStatusAlert.className = 'alert alert-success mt-3';
+            fraudStatusAlert.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i> ' + data.message;
+            
+            // Add to response box
+            addToResponseBox(`Successfully reset fraud detection`);
+            
+            // Update the system status immediately
+            const systemStatus = document.getElementById('system-status');
+            systemStatus.className = 'alert alert-success';
+            systemStatus.innerHTML = `
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-check-circle-fill me-2"></i>
+                    <div>System operational - No fraud detected</div>
+                </div>
+            `;
+            
+            // Force an immediate refresh of sensor data
+            setTimeout(getSensorData, 500);
+        } else {
+            fraudStatusAlert.className = 'alert alert-danger mt-3';
+            fraudStatusAlert.innerHTML = '<i class="bi bi-x-circle-fill me-2"></i> ' + data.message;
+            
+            // Add to response box
+            addToResponseBox(`Error: ${data.message}`);
+        }
+    })
+    .catch(error => {
+        fraudStatusAlert.className = 'alert alert-danger mt-3';
+        fraudStatusAlert.innerHTML = '<i class="bi bi-x-circle-fill me-2"></i> Error: ' + error;
+        
+        // Add to response box
+        addToResponseBox(`Error: ${error}`);
+    });
+}
+        
+        // Function to update the cart UI
+        function updateCartUI() {
+            // Update counts
+            document.getElementById('total-items').textContent = cartItems.length;
+            document.getElementById('items-count').textContent = cartItems.length;
+            document.getElementById('total-cost').textContent = 'RM ' + totalCost.toFixed(2);
+            
+            // Show/hide empty cart message
+            if (cartItems.length > 0) {
+                document.getElementById('empty-cart-message').style.display = 'none';
+            } else {
+                document.getElementById('empty-cart-message').style.display = 'block';
+            }
+            
+            // Update cart items
+            const cartItemsElement = document.getElementById('cart-items');
+            cartItemsElement.innerHTML = '';
+            
+            cartItems.forEach(item => {
+                const row = document.createElement('tr');
+                row.className = item.status === 'Fraud' ? 'fraud-alert' : 'cart-item';
+                row.innerHTML = `
+                    <td>${item.name}</td>
+                    <td>${item.category}</td>
+                    <td>RM ${item.price.toFixed(2)}</td>
+                    <td>${item.time}</td>
+                    <td>
+                        <span class="badge ${item.status === 'Fraud' ? 'bg-danger' : 'bg-success'}">
+                            ${item.status}
+                        </span>
+                    </td>
+                `;
+                cartItemsElement.appendChild(row);
+            });
+            
+            // Update categories
+            const categoryListElement = document.getElementById('category-list');
+            categoryListElement.innerHTML = '';
+            
+            Object.keys(categories).forEach(category => {
+                const li = document.createElement('li');
+                li.className = 'list-group-item d-flex justify-content-between align-items-center';
+                li.innerHTML = `
+                    ${category}
+                    <span class="badge bg-success rounded-pill">${categories[category]}</span>
+                `;
+                categoryListElement.appendChild(li);
+            });
+        }
+        
+        // Function to check sensor status periodically
+        function checkSensorStatus() {
+            fetch('/sensor_status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === "success" && data.data) {
+                        // Update sensor display
+                        document.getElementById('distance-value').textContent = data.data.distance + ' cm';
+                        document.getElementById('weight-value').textContent = data.data.weight + ' g';
+                        
+                        // Check if fraud is detected
+                        if (data.data.fraud_detected && !fraudDetected) {
+                            fraudDetected = true;
+                            showFraudNotification(data.data.fraud_type);
+                            
+                            // Update the most recent item to show fraud status if applicable
+                            if (cartItems.length > 0) {
+                                const lastItem = cartItems[cartItems.length - 1];
+                                lastItem.status = 'Fraud';
+                                updateCartUI();
+                                
+                                // Save to localStorage
+                                localStorage.setItem('cartItems', JSON.stringify(cartItems));
+                            }
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking sensor status:', error);
+                });
+        }
+        // Function to reset fraud alerts
+function resetFraudAlert() {
+    console.log("resetFraudAlert called");
+    
+    // Hide the alert banner
+    document.getElementById('fraud-alert').classList.add('d-none');
+    
+    // Call the reset_fraud endpoint
+    fetch('/reset_fraud', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log('Fraud reset response:', data);
+        if (data.status === "success") {
+            fraudDetected = false;
+            
+            // Remove fraud status from items
+            cartItems.forEach(item => {
+                if (item.status === 'Fraud') {
+                    item.status = 'Valid';
+                }
+            });
+            
+            // Update UI
+            updateCartUI();
+            
+            // Save to localStorage
+            localStorage.setItem('cartItems', JSON.stringify(cartItems));
+            
+            // Show success message
+            const notification = document.createElement('div');
+            notification.className = 'alert alert-success rfid-notification';
+            notification.innerHTML = `
+                <i class="bi bi-check-circle-fill me-2"></i>
+                Fraud alert reset successfully
+            `;
+            document.getElementById('rfid-notifications').appendChild(notification);
+            
+            // Remove notification after 3 seconds
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+    })
+    .catch(error => {
+        console.error('Error resetting fraud alert:', error);
+    });
+}
+        
+        // Set the current page
+        function setCurrentPage(page) {
+            currentPage = page;
+            console.log('Current page set to:', page);
+            
+            // Disable scanning on control page
+            scanningEnabled = (page !== 'control');
+        }
+        
+        // Initialize the current page
+        setCurrentPage('dashboard');
+        
+        // Check for RFID tags every 2 seconds, with rate limiting in the checkRFID function
+        setInterval(checkRFID, 2000);
+        
+        // Check sensor status every 2 seconds
+        setInterval(checkSensorStatus, 2000);
+        
+        // Initial UI update
+        updateCartUI();
+        
+        // Initial sensor status check
+        checkSensorStatus();
+
+        document.addEventListener('DOMContentLoaded', function() {
+    const resetButton = document.querySelector('button[onclick="resetFraudAlert()"]');
+    if (resetButton) {
+      // Double attach the event listener for reliability
+      resetButton.addEventListener('click', resetFraudAlert);
+      console.log("Reset button event listener attached");
+    } else {
+      console.error("Reset fraud button not found!");
+    }
+  });
+    </script>
+</body>
+</html>

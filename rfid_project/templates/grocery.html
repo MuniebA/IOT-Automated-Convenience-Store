@@ -1,0 +1,692 @@
+{% extends "layout.html" %}
+
+{% block title %}Smart Cart - Grocery Items{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Main styling */
+    .grocery-container {
+        padding: 20px 0;
+    }
+    
+    .filter-bar {
+        background-color: #f8f9fa;
+        border-radius: 10px;
+        padding: 15px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+    
+    .search-input {
+        border-radius: 50px;
+        padding: 8px 20px;
+        border: 1px solid #ddd;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+    }
+    
+    .filter-btn {
+        border-radius: 20px;
+        margin: 0 5px;
+        font-weight: 500;
+        padding: 6px 15px;
+        transition: all 0.2s;
+    }
+    
+    .filter-btn.active {
+        background-color: #28a745;
+        color: white;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    
+    .filter-btn:hover {
+        transform: translateY(-2px);
+    }
+    
+    .sort-select {
+        border-radius: 20px;
+        padding: 6px 15px;
+        border: 1px solid #ddd;
+        background-color: white;
+    }
+    
+    /* Grid styling */
+    .grocery-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 20px;
+    }
+    
+    .grocery-item {
+        border-radius: 10px;
+        overflow: hidden;
+        transition: transform 0.3s, box-shadow 0.3s;
+        background-color: white;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+        border: none;
+    }
+    
+    .grocery-item:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
+    }
+    
+    .grocery-image-container {
+        height: 180px;
+        overflow: hidden;
+        position: relative;
+    }
+    
+    .grocery-image {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transition: transform 0.5s;
+    }
+    
+    .grocery-item:hover .grocery-image {
+        transform: scale(1.05);
+    }
+    
+    .grocery-category {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background-color: rgba(40, 167, 69, 0.8);
+        color: white;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+    
+    .grocery-content {
+        padding: 15px;
+        display: flex;
+        flex-direction: column;
+        flex-grow: 1;
+    }
+    
+    .grocery-name {
+        font-weight: 600;
+        font-size: 1.1rem;
+        margin-bottom: 5px;
+        color: #343a40;
+    }
+    
+    .grocery-price {
+        color: #28a745;
+        font-weight: 600;
+        margin-bottom: 15px;
+        font-size: 1.1rem;
+    }
+    
+    .grocery-action {
+        margin-top: auto;
+    }
+    
+    .btn-weigh {
+        background-color: #28a745;
+        border-color: #28a745;
+        color: white;
+        border-radius: 50px;
+        padding: 8px 15px;
+        width: 100%;
+        transition: all 0.2s;
+    }
+    
+    .btn-weigh:hover {
+        background-color: #218838;
+        transform: translateY(-2px);
+        box-shadow: 0 5px 10px rgba(0,0,0,0.1);
+    }
+    
+    /* Weighing section */
+    .weighing-container {
+        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+        border-radius: 10px;
+        padding: 25px;
+        margin-bottom: 25px;
+        text-align: center;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        border: none;
+    }
+    
+    .weighing-header {
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid #dee2e6;
+    }
+    
+    .weighing-animation {
+        display: none;
+        margin: 20px 0;
+    }
+    
+    .weighing-animation.active {
+        display: block;
+    }
+    
+    .weight-display {
+        background-color: white;
+        border-radius: 10px;
+        padding: 15px;
+        margin: 15px 0;
+        box-shadow: 0 3px 10px rgba(0,0,0,0.05);
+    }
+    
+    .weight-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #28a745;
+    }
+    
+    .weight-price {
+        font-size: 1.3rem;
+        font-weight: 600;
+        color: #495057;
+    }
+    
+    .action-buttons {
+        margin-top: 20px;
+    }
+    
+    .action-buttons .btn {
+        border-radius: 50px;
+        padding: 10px 20px;
+        font-weight: 500;
+        margin: 0 5px;
+        box-shadow: 0 3px 5px rgba(0,0,0,0.1);
+        transition: all 0.2s;
+    }
+    
+    .action-buttons .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 10px rgba(0,0,0,0.15);
+    }
+    
+    /* Empty state */
+    .empty-state {
+        text-align: center;
+        padding: 50px 20px;
+        background-color: #f8f9fa;
+        border-radius: 10px;
+    }
+    
+    .empty-icon {
+        font-size: 3rem;
+        color: #dee2e6;
+        margin-bottom: 15px;
+    }
+    
+    /* Animations */
+    @keyframes pulse {
+        0% {
+            transform: scale(1);
+        }
+        50% {
+            transform: scale(1.05);
+        }
+        100% {
+            transform: scale(1);
+        }
+    }
+    
+    .pulse {
+        animation: pulse 2s infinite;
+    }
+    
+    /* Loading spinner */
+    .spinner-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 40px 0;
+    }
+    
+    .spinner-text {
+        margin-top: 15px;
+        color: #6c757d;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="alerts"></div>
+
+<div class="container grocery-container">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="fas fa-leaf"></i> Fresh Grocery Department
+                    </div>
+                    <div>
+                        <span class="badge bg-light text-dark">Pay by weight</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Filter Bar -->
+                    <div class="filter-bar d-flex flex-wrap align-items-center">
+                        <div class="me-auto mb-2 mb-md-0">
+                            <input type="text" class="form-control search-input" id="grocerySearch" placeholder="Search groceries...">
+                        </div>
+                        <div class="d-flex align-items-center flex-wrap">
+                            <div class="me-2 mb-2 mb-md-0">
+                                <button class="btn filter-btn active" data-filter="all">All Items</button>
+                                <button class="btn filter-btn" data-filter="fruits">Fruits</button>
+                                <button class="btn filter-btn" data-filter="vegetables">Vegetables</button>
+                            </div>
+                            <div>
+                                <select class="form-select sort-select" id="grocerySort">
+                                    <option value="name-asc">Name (A-Z)</option>
+                                    <option value="name-desc">Name (Z-A)</option>
+                                    <option value="price-asc">Price (Low-High)</option>
+                                    <option value="price-desc">Price (High-Low)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Weighing Section -->
+                    <div id="weighingSection" class="weighing-container" style="display: none;">
+                        <div class="weighing-header">
+                            <h4 id="selectedItemName" class="mb-0">Selected Item</h4>
+                        </div>
+                        
+                        <div id="weighingAnimation" class="weighing-animation">
+                            <i class="fas fa-balance-scale fa-3x pulse text-success"></i>
+                            <p class="mt-3">Please place the item on the scale...</p>
+                        </div>
+                        
+                        <div id="weightResult" style="display: none;">
+                            <div class="weight-display">
+                                <div class="weight-value">
+                                    <span id="itemWeight">0</span>g
+                                </div>
+                                <div class="weight-price mt-2">
+                                    $<span id="itemPrice">0.00</span>
+                                </div>
+                            </div>
+                            
+                            <div class="action-buttons">
+                                <button id="addToCartBtn" class="btn btn-primary">
+                                    <i class="fas fa-cart-plus"></i> Add to Cart
+                                </button>
+                                <button id="cancelWeighingBtn" class="btn btn-outline-secondary">
+                                    <i class="fas fa-times"></i> Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Grocery Items Grid -->
+                    <div class="grocery-grid" id="groceryGrid">
+                        <div class="spinner-container">
+                            <i class="fas fa-spinner fa-spin fa-2x text-success"></i>
+                            <p class="spinner-text">Loading grocery items...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Global variables
+    let selectedGroceryItem = null;
+    let weightTimer = null;
+    let groceryItems = [];
+    let currentFilter = 'all';
+    let currentSort = 'name-asc';
+    let searchTerm = '';
+    
+    // Load grocery items when the page loads
+    $(document).ready(function() {
+        loadGroceryItems();
+        
+        // Set up event handlers
+        $('#addToCartBtn').click(addGroceryToCart);
+        $('#cancelWeighingBtn').click(cancelWeighing);
+        
+        // Search functionality
+        $('#grocerySearch').on('input', function() {
+            searchTerm = $(this).val().toLowerCase();
+            filterAndSortItems();
+        });
+        
+        // Filter buttons
+        $('.filter-btn').click(function() {
+            $('.filter-btn').removeClass('active');
+            $(this).addClass('active');
+            currentFilter = $(this).data('filter');
+            filterAndSortItems();
+        });
+        
+        // Sorting
+        $('#grocerySort').change(function() {
+            currentSort = $(this).val();
+            filterAndSortItems();
+        });
+    });
+    
+    // Function to load grocery items from the server
+    function loadGroceryItems() {
+        $.ajax({
+            url: '/get_grocery_items',
+            type: 'GET',
+            dataType: 'json',
+            success: function(response) {
+                if (response.error) {
+                    showAlert('Error loading grocery items: ' + response.error, 'danger');
+                    $('#groceryGrid').html('<div class="empty-state"><i class="fas fa-exclamation-circle empty-icon"></i><p>Failed to load grocery items</p></div>');
+                    return;
+                }
+                
+                groceryItems = response.items;
+                
+                // Add category to items (for demo purposes - in real app, this would come from the backend)
+                groceryItems.forEach(item => {
+                    // Simple logic to categorize - in a real app this would be from your database
+                    const name = item.product_name.toLowerCase();
+                    if (name.includes('apple') || name.includes('banana') || name.includes('orange') || 
+                        name.includes('grape') || name.includes('berry') || name.includes('melon') || 
+                        name.includes('peach') || name.includes('pear') || name.includes('plum') || 
+                        name.includes('cherry')) {
+                        item.category = 'fruits';
+                    } else {
+                        item.category = 'vegetables';
+                    }
+                });
+                
+                filterAndSortItems();
+            },
+            error: function(xhr, status, error) {
+                console.error('Error loading grocery items:', error);
+                showAlert('Failed to load grocery items. Please try again.', 'danger');
+                $('#groceryGrid').html('<div class="empty-state"><i class="fas fa-exclamation-circle empty-icon"></i><p>Failed to load grocery items</p></div>');
+            }
+        });
+    }
+    
+    // Function to filter and sort items
+    function filterAndSortItems() {
+        // Filter items
+        let filteredItems = groceryItems;
+        
+        // Apply category filter
+        if (currentFilter !== 'all') {
+            filteredItems = filteredItems.filter(item => item.category === currentFilter);
+        }
+        
+        // Apply search filter
+        if (searchTerm) {
+            filteredItems = filteredItems.filter(item => 
+                item.product_name.toLowerCase().includes(searchTerm) ||
+                item.description?.toLowerCase().includes(searchTerm)
+            );
+        }
+        
+        // Sort items
+        filteredItems.sort((a, b) => {
+            switch(currentSort) {
+                case 'name-asc':
+                    return a.product_name.localeCompare(b.product_name);
+                case 'name-desc':
+                    return b.product_name.localeCompare(a.product_name);
+                case 'price-asc':
+                    return a.price_per_kg - b.price_per_kg;
+                case 'price-desc':
+                    return b.price_per_kg - a.price_per_kg;
+                default:
+                    return 0;
+            }
+        });
+        
+        updateGroceryGrid(filteredItems);
+    }
+    
+    // Function to update the grocery grid with items
+    function updateGroceryGrid(items) {
+        const grid = $('#groceryGrid');
+        
+        if (!items || items.length === 0) {
+            grid.html(`
+                <div class="empty-state">
+                    <i class="fas fa-search empty-icon"></i>
+                    <h4>No items found</h4>
+                    <p class="text-muted">Try adjusting your search or filter criteria</p>
+                </div>
+            `);
+            return;
+        }
+        
+        let html = '';
+        items.forEach(item => {
+            // Use default.jpg if image_path is null or undefined
+            const imagePath = item.image_path || '/static/images/default.jpg';
+            const categoryLabel = item.category.charAt(0).toUpperCase() + item.category.slice(1);
+            
+            html += `
+                <div class="grocery-item" data-id="${item.id}" data-name="${item.product_name}" data-price="${item.price_per_kg}" data-category="${item.category}">
+                    <div class="grocery-image-container">
+                        <img src="${imagePath}" alt="${item.product_name}" class="grocery-image" onerror="this.src='/static/images/default.jpg'">
+                        <span class="grocery-category">${categoryLabel}</span>
+                    </div>
+                    <div class="grocery-content">
+                        <div class="grocery-name">${item.product_name}</div>
+                        <div class="grocery-price">$${parseFloat(item.price_per_kg).toFixed(2)} per kg</div>
+                        <div class="grocery-action">
+                            <button class="btn btn-weigh select-grocery-btn">
+                                <i class="fas fa-weight"></i> Weigh & Add
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        grid.html(html);
+        
+        // Add event listener to the select buttons
+        $('.select-grocery-btn').click(function() {
+            const groceryItem = $(this).closest('.grocery-item');
+            selectGroceryItem({
+                id: groceryItem.data('id'),
+                name: groceryItem.data('name'),
+                price_per_kg: groceryItem.data('price'),
+                category: groceryItem.data('category')
+            });
+        });
+    }
+    
+    // Function to handle selecting a grocery item
+    function selectGroceryItem(item) {
+        selectedGroceryItem = item;
+        
+        // Update the weighing section
+        $('#selectedItemName').text(item.name);
+        $('#itemWeight').text('0');
+        $('#itemPrice').text('0.00');
+        
+        // Show the weighing section and animation
+        $('#weighingSection').fadeIn();
+        $('#weighingAnimation').show().addClass('active');
+        $('#weightResult').hide();
+        
+        // Scroll to weighing section
+        $('html, body').animate({
+            scrollTop: $('#weighingSection').offset().top - 100
+        }, 500);
+        
+        // Send command to tare the scale
+        $.ajax({
+            url: '/tare_scale',
+            type: 'POST',
+            dataType: 'json',
+            success: function(response) {
+                if (response.error) {
+                    showAlert('Error taring scale: ' + response.error, 'danger');
+                    return;
+                }
+                
+                // Start polling for weight
+                startWeightPolling();
+            },
+            error: function(xhr, status, error) {
+                console.error('Error taring scale:', error);
+                showAlert('Failed to tare scale. Please try again.', 'danger');
+                cancelWeighing();
+            }
+        });
+    }
+    
+    // Function to start polling for weight
+    function startWeightPolling() {
+        // Clear any existing timer
+        if (weightTimer) {
+            clearInterval(weightTimer);
+        }
+        
+        // First, get weight immediately
+        getItemWeight();
+        
+        // Then poll weight every second
+        weightTimer = setInterval(getItemWeight, 1000);
+        
+        // Set a timeout to stop polling after 30 seconds
+        setTimeout(function() {
+            if (weightTimer) {
+                clearInterval(weightTimer);
+                weightTimer = null;
+                
+                // If we're still showing the animation, show a timeout message
+                if ($('#weighingAnimation').is(':visible')) {
+                    showAlert('Weight measurement timed out. Please try again.', 'warning');
+                    cancelWeighing();
+                }
+            }
+        }, 30000);
+    }
+    
+    // Function to get the weight of the item
+    function getItemWeight() {
+        $.ajax({
+            url: '/get_grocery_weight',
+            type: 'POST',
+            dataType: 'json',
+            success: function(response) {
+                if (response.weight && response.weight > 0) {
+                    // Stop polling once we have a valid weight
+                    clearInterval(weightTimer);
+                    weightTimer = null;
+                    
+                    // Calculate price based on weight and price per kg
+                    const weight = response.weight;
+                    const weightKg = weight / 1000; // Convert grams to kg
+                    const price = weightKg * selectedGroceryItem.price_per_kg;
+                    
+                    // Update the display
+                    $('#itemWeight').text(weight.toFixed(0));
+                    $('#itemPrice').text(price.toFixed(2));
+                    
+                    // Hide animation, show result
+                    $('#weighingAnimation').removeClass('active').hide();
+                    $('#weightResult').fadeIn();
+                    
+                    // Show success message
+                    showAlert(`Item weighed successfully: ${weight.toFixed(0)}g`, 'success');
+                }
+            },
+            error: function(xhr, status, error) {
+                // Handle 202 status (still waiting)
+                if (xhr.status === 202) {
+                    console.log('Waiting for weight data:', xhr.responseJSON?.error || 'Please wait...');
+                    // Keep polling
+                } else {
+                    console.error('Error getting weight:', error);
+                    // Don't stop polling on error, just log it
+                }
+            }
+        });
+    }
+    
+    // Function to add the grocery item to cart
+    function addGroceryToCart() {
+        const weight = parseFloat($('#itemWeight').text());
+        const price = parseFloat($('#itemPrice').text());
+        
+        if (weight <= 0 || isNaN(weight) || isNaN(price)) {
+            showAlert('Invalid weight or price. Please try again.', 'warning');
+            return;
+        }
+        
+        // Disable the button to prevent double clicks
+        $('#addToCartBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Adding...');
+        
+        $.ajax({
+            url: '/add_grocery_to_cart',
+            type: 'POST',
+            data: {
+                grocery_id: selectedGroceryItem.id,
+                weight: weight,
+                price: price
+            },
+            dataType: 'json',
+            success: function(response) {
+                if (response.error) {
+                    showAlert('Error adding item to cart: ' + response.error, 'danger');
+                    $('#addToCartBtn').prop('disabled', false).html('<i class="fas fa-cart-plus"></i> Add to Cart');
+                    return;
+                }
+                
+                showAlert(`${selectedGroceryItem.name} added to cart!`, 'success');
+                cancelWeighing();
+                
+                // Enable the button
+                $('#addToCartBtn').prop('disabled', false).html('<i class="fas fa-cart-plus"></i> Add to Cart');
+            },
+            error: function(xhr, status, error) {
+                console.error('Error adding grocery to cart:', error);
+                showAlert('Failed to add item to cart. Please try again.', 'danger');
+                $('#addToCartBtn').prop('disabled', false).html('<i class="fas fa-cart-plus"></i> Add to Cart');
+            }
+        });
+    }
+    
+    // Function to cancel weighing
+    function cancelWeighing() {
+        // Stop weight polling
+        if (weightTimer) {
+            clearInterval(weightTimer);
+            weightTimer = null;
+        }
+        
+        // Reset the weighing section
+        $('#weighingSection').fadeOut();
+        $('#weighingAnimation').removeClass('active');
+        selectedGroceryItem = null;
+    }
+    
+    // Enhanced alert function with auto-hide
+    function showAlert(message, type = 'success') {
+        const alertDiv = $('<div class="alert alert-' + type + ' alert-dismissible fade show" role="alert">' +
+            message +
+            '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>' +
+            '</div>');
+        $('#alerts').append(alertDiv);
+        
+        // Auto-dismiss after 5 seconds
+        setTimeout(() => {
+            alertDiv.alert('close');
+        }, 5000);
+    }
+</script>
+{% endblock %}

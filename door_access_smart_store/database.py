@@ -190,6 +190,25 @@ class DatabaseManager:
                 if conn.is_connected():
                     conn.close()
     
+    def get_user_by_uid(self, uid):
+        """Get user information by UID"""
+        conn = self.get_connection()
+        if not conn:
+            return None
+        
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SELECT uid, name, created_at FROM users WHERE uid = %s", (uid,))
+            result = cursor.fetchone()
+            return result
+        except Exception as err:
+            print(f"Database error getting user: {err}")
+            return None
+        finally:
+            cursor.close()
+            if conn.is_connected():
+                conn.close()
+    
     def get_system_status(self):
         conn = self.get_connection()
         if not conn:

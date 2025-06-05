@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Cart Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 960px;
+            margin: 40px auto;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+        }
+        .section {
+            margin-top: 30px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            text-align: center;
+        }
+        th {
+            background-color: #007bff;
+            color: white;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Smart Cart Dashboard</h1>
+
+    <div class="section">
+        <h2>Recent RFID Scans</h2>
+        <table id="scanTable">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>UID</th>
+                    <th>Data</th>
+                    <th>Timestamp</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Fraudulent Events</h2>
+        <table id="fraudTable">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Event</th>
+                    <th>Time</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>Send Command</h2>
+        <button onclick="sendCommand('READ')">Read Card</button>
+        <button onclick="sendCommand('RESET')">Reset Card</button>
+        <button onclick="sendCommand('CARD_CHECK')">Check for Card</button>
+    </div>
+</div>
+
+<script>
+    async function fetchData() {
+        const scanRes = await fetch('/scan-history');
+        const scans = await scanRes.json();
+
+        const scanTable = document.querySelector('#scanTable tbody');
+        scanTable.innerHTML = '';
+        scans.forEach(scan => {
+            scanTable.innerHTML += `<tr><td>${scan.id}</td><td>${scan.uid}</td><td>${scan.data}</td><td>${scan.scanned_at}</td></tr>`;
+        });
+
+        const fraudRes = await fetch('/fraud-events');
+        const events = await fraudRes.json();
+
+        const fraudTable = document.querySelector('#fraudTable tbody');
+        fraudTable.innerHTML = '';
+        events.forEach(event => {
+            fraudTable.innerHTML += `<tr><td>${event.id}</td><td>${event.event_type}</td><td>${event.event_time}</td></tr>`;
+        });
+    }
+
+    async function sendCommand(type) {
+        await fetch('/command', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command_type: type, payload: '' })
+        });
+        alert('Command sent!');
+    }
+
+    fetchData();
+    setInterval(fetchData, 5000);
+</script>
+</body>
+</html>
