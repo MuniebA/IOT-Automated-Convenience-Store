@@ -1,99 +1,584 @@
-{% extends "base.html" %}
+{% extends "admin/base.html" %}
 
 {% block title %}Users - IoT Store Admin{% endblock %}
 {% block page_title %}User Management{% endblock %}
+{% block page_subtitle %}Manage all system users and their access levels{% endblock %}
 
 {% block page_actions %}
 <div class="btn-group" role="group">
-    <a href="{{ url_for('register_card') }}" class="btn btn-primary">
+    <a href="{{ url_for('admin_register_card') }}" class="btn btn-primary">
         <i class="fas fa-plus"></i> Add New User
     </a>
-    <button type="button" class="btn btn-outline-secondary">
+    <button type="button" class="btn btn-outline-secondary" onclick="toggleFilters()">
         <i class="fas fa-filter"></i> Filter
+    </button>
+    <button type="button" class="btn btn-outline-info" onclick="exportUsers()">
+        <i class="fas fa-file-excel"></i> Export
     </button>
 </div>
 {% endblock %}
 
 {% block content %}
-<!-- Users Table -->
-<div class="table-custom">
-    <table class="table table-hover mb-0">
-        <thead>
-            <tr>
-                <th>Customer ID</th>
-                <th>Name</th>
-                <th>Type</th>
-                <th>RFID Card</th>
-                <th>Total Spent</th>
-                <th>Visits</th>
-                <th>Last Visit</th>
-                <th>Status</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for customer in customers %}
-            <tr>
-                <td><code>{{ customer.customer_id }}</code></td>
-                <td>
-                    <div class="d-flex align-items-center">
-                        <div class="avatar bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2" 
-                             style="width: 32px; height: 32px; font-size: 14px;">
-                            {{ customer.customer_name[0].upper() }}
-                        </div>
-                        {{ customer.customer_name }}
-                    </div>
-                </td>
-                <td>
-                    <span class="badge bg-{% if customer.customer_type == 'VIP' %}warning{% elif customer.customer_type == 'EMPLOYEE' %}info{% else %}secondary{% endif %}">
-                        {{ customer.customer_type }}
-                    </span>
-                </td>
-                <td><code>{{ customer.rfid_card_uid }}</code></td>
-                <td><strong>${{ "%.2f"|format(customer.total_spent) }}</strong></td>
-                <td>{{ customer.total_visits }}</td>
-                <td>{{ customer.last_visit[:10] }}</td>
-                <td>
-                    <span class="badge-custom status-{% if customer.membership_status == 'ACTIVE' %}active{% else %}suspended{% endif %}">
-                        {{ customer.membership_status }}
-                    </span>
-                </td>
-                <td>
-                    <div class="btn-group btn-group-sm" role="group">
-                        <button type="button" class="btn btn-outline-primary" title="View Details">
-                            <i class="fas fa-eye"></i>
-                        </button>
-                        <button type="button" class="btn btn-outline-warning" title="Edit">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button type="button" class="btn btn-outline-danger" title="Suspend">
-                            <i class="fas fa-ban"></i>
-                        </button>
-                    </div>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+<!-- User Statistics -->
+<div class="row mb-4">
+    <div class="col-xl-3 col-md-6 mb-3">
+        <div class="stats-card border-start border-primary border-4">
+            <div class="icon bg-primary text-white">
+                <i class="fas fa-users"></i>
+            </div>
+            <div class="value text-primary">{{ customers|length or 0 }}</div>
+            <div class="label">Total Users</div>
+            <small class="text-muted">All registered users</small>
+        </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-3">
+        <div class="stats-card border-start border-success border-4">
+            <div class="icon bg-success text-white">
+                <i class="fas fa-user-check"></i>
+            </div>
+            {% set active_users = customers|selectattr("membership_status", "equalto", "ACTIVE")|list|length if customers else 0 %}
+            <div class="value text-success">{{ active_users }}</div>
+            <div class="label">Active Users</div>
+            <small class="text-muted">Currently active</small>
+        </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-3">
+        <div class="stats-card border-start border-warning border-4">
+            <div class="icon bg-warning text-white">
+                <i class="fas fa-crown"></i>
+            </div>
+            {% set vip_users = customers|selectattr("customer_type", "equalto", "VIP")|list|length if customers else 0 %}
+            <div class="value text-warning">{{ vip_users }}</div>
+            <div class="label">VIP Users</div>
+            <small class="text-muted">Premium members</small>
+        </div>
+    </div>
+    
+    <div class="col-xl-3 col-md-6 mb-3">
+        <div class="stats-card border-start border-info border-4">
+            <div class="icon bg-info text-white">
+                <i class="fas fa-id-card"></i>
+            </div>
+            {% set users_with_cards = customers|selectattr("rfid_card_uid")|list|length if customers else 0 %}
+            <div class="value text-info">{{ users_with_cards }}</div>
+            <div class="label">Cards Assigned</div>
+            <small class="text-muted">RFID cards issued</small>
+        </div>
+    </div>
 </div>
 
-<!-- Pagination -->
-<div class="d-flex justify-content-between align-items-center mt-3">
-    <div class="text-muted">
-        Showing {{ customers|length }} of {{ customers|length }} users
+<!-- Filter Panel (Initially Hidden) -->
+<div class="card mb-4" id="filterPanel" style="display: none;">
+    <div class="card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Search Users</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                    <input type="text" class="form-control" id="userSearch" placeholder="Name, email, or ID...">
+                </div>
+            </div>
+            
+            <div class="col-md-2">
+                <label class="form-label">Status</label>
+                <select class="form-select" id="statusFilter">
+                    <option value="">All Statuses</option>
+                    <option value="ACTIVE">Active</option>
+                    <option value="PENDING">Pending</option>
+                    <option value="SUSPENDED">Suspended</option>
+                </select>
+            </div>
+            
+            <div class="col-md-2">
+                <label class="form-label">Type</label>
+                <select class="form-select" id="typeFilter">
+                    <option value="">All Types</option>
+                    <option value="REGULAR">Regular</option>
+                    <option value="VIP">VIP</option>
+                    <option value="EMPLOYEE">Employee</option>
+                    <option value="ADMIN">Admin</option>
+                </select>
+            </div>
+            
+            <div class="col-md-2">
+                <label class="form-label">Card Status</label>
+                <select class="form-select" id="cardFilter">
+                    <option value="">All Cards</option>
+                    <option value="assigned">Has Card</option>
+                    <option value="unassigned">No Card</option>
+                </select>
+            </div>
+            
+            <div class="col-md-3">
+                <div class="btn-group w-100">
+                    <button class="btn btn-primary" onclick="applyFilters()">
+                        <i class="fas fa-filter"></i> Apply
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="clearFilters()">
+                        <i class="fas fa-times"></i> Clear
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
-    <nav>
-        <ul class="pagination pagination-sm mb-0">
-            <li class="page-item disabled">
-                <span class="page-link">Previous</span>
-            </li>
-            <li class="page-item active">
-                <span class="page-link">1</span>
-            </li>
-            <li class="page-item disabled">
-                <span class="page-link">Next</span>
-            </li>
-        </ul>
-    </nav>
 </div>
+
+<!-- Users Table -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            <i class="fas fa-users me-2"></i>
+            User Directory
+        </h5>
+        <div class="d-flex align-items-center gap-2">
+            <small class="text-muted" id="userCount">{{ customers|length or 0 }} users</small>
+            <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-secondary" onclick="selectAllUsers()">
+                    <i class="fas fa-check-square"></i> Select All
+                </button>
+                <button class="btn btn-outline-secondary" onclick="deselectAllUsers()">
+                    <i class="fas fa-square"></i> Deselect All
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="usersTable">
+                <thead class="table-light">
+                    <tr>
+                        <th width="40">
+                            <input type="checkbox" class="form-check-input" id="selectAllCheckbox">
+                        </th>
+                        <th>Customer ID</th>
+                        <th>Name</th>
+                        <th>Contact</th>
+                        <th>Type</th>
+                        <th>RFID Card</th>
+                        <th>Total Spent</th>
+                        <th>Visits</th>
+                        <th>Last Visit</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for customer in customers %}
+                    <tr data-user-id="{{ customer.customer_id }}">
+                        <td>
+                            <input type="checkbox" class="form-check-input user-checkbox" value="{{ customer.customer_id }}">
+                        </td>
+                        <td><code>{{ customer.customer_id or 'N/A' }}</code></td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="avatar bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2" 
+                                     style="width: 32px; height: 32px; font-size: 14px;">
+                                    {{ (customer.customer_name or customer.name or 'U')[:1].upper() }}
+                                </div>
+                                <div>
+                                    <div class="fw-bold">{{ customer.customer_name or customer.name or 'Unknown User' }}</div>
+                                    <small class="text-muted">ID: {{ customer.customer_id[:8] if customer.customer_id else 'N/A' }}...</small>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div>
+                                {% if customer.email %}
+                                <i class="fas fa-envelope text-muted me-1"></i>
+                                <small>{{ customer.email }}</small>
+                                {% else %}
+                                <small class="text-muted">No email</small>
+                                {% endif %}
+                            </div>
+                            {% if customer.phone %}
+                            <div>
+                                <i class="fas fa-phone text-muted me-1"></i>
+                                <small>{{ customer.phone }}</small>
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-{% if customer.customer_type == 'VIP' %}warning{% elif customer.customer_type == 'EMPLOYEE' %}info{% elif customer.customer_type == 'ADMIN' %}danger{% else %}secondary{% endif %}">
+                                {{ customer.customer_type or 'REGULAR' }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if customer.rfid_card_uid %}
+                                <code class="bg-success text-white px-2 py-1 rounded">{{ customer.rfid_card_uid }}</code>
+                            {% else %}
+                                <span class="badge bg-warning">No Card</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <strong class="text-success">${{ "%.2f"|format(customer.total_spent|float) if customer.total_spent else "0.00" }}</strong>
+                        </td>
+                        <td>{{ customer.total_visits or 0 }}</td>
+                        <td>
+                            <small class="text-muted">
+                                {% if customer.last_visit %}
+                                    {{ customer.last_visit[:10] }}
+                                {% else %}
+                                    Never
+                                {% endif %}
+                            </small>
+                        </td>
+                        <td>
+                            {% set status = customer.membership_status or 'UNKNOWN' %}
+                            <span class="badge bg-{% if status == 'ACTIVE' %}success{% elif status == 'PENDING' %}warning{% elif status == 'SUSPENDED' %}danger{% else %}secondary{% endif %}">
+                                {{ status }}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-primary" title="View Details" onclick="viewUser('{{ customer.customer_id }}')">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button type="button" class="btn btn-outline-warning" title="Edit" onclick="editUser('{{ customer.customer_id }}')">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" title="More Actions">
+                                        <i class="fas fa-ellipsis-v"></i>
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        {% if status == 'ACTIVE' %}
+                                        <li><a class="dropdown-item text-warning" onclick="suspendUser('{{ customer.customer_id }}')">
+                                            <i class="fas fa-ban me-2"></i>Suspend
+                                        </a></li>
+                                        {% elif status == 'SUSPENDED' %}
+                                        <li><a class="dropdown-item text-success" onclick="activateUser('{{ customer.customer_id }}')">
+                                            <i class="fas fa-user-check me-2"></i>Activate
+                                        </a></li>
+                                        {% endif %}
+                                        {% if not customer.rfid_card_uid %}
+                                        <li><a class="dropdown-item" onclick="assignCard('{{ customer.customer_id }}')">
+                                            <i class="fas fa-id-card text-info me-2"></i>Assign Card
+                                        </a></li>
+                                        {% endif %}
+                                        <li><a class="dropdown-item" onclick="viewTransactions('{{ customer.customer_id }}')">
+                                            <i class="fas fa-receipt text-info me-2"></i>View Transactions
+                                        </a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item text-danger" onclick="deleteUser('{{ customer.customer_id }}')">
+                                            <i class="fas fa-trash me-2"></i>Delete User
+                                        </a></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="11" class="text-center py-5">
+                            <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">No Users Found</h5>
+                            <p class="text-muted">No users match your current filters.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card-footer bg-light">
+        <div class="d-flex justify-content-between align-items-center">
+            <small class="text-muted">
+                Showing {{ customers|length or 0 }} users
+            </small>
+            <nav>
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item disabled">
+                        <span class="page-link">Previous</span>
+                    </li>
+                    <li class="page-item active">
+                        <span class="page-link">1</span>
+                    </li>
+                    <li class="page-item disabled">
+                        <span class="page-link">Next</span>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+<!-- User Details Modal -->
+<div class="modal fade" id="userDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-user me-2"></i>
+                    User Details
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="userDetailsContent">
+                    <!-- Content loaded dynamically -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="editUserFromModal()">Edit User</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let allUsers = {{ customers|tojson }};
+let selectedUsers = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+    initializeFilters();
+    initializeSelection();
+});
+
+function initializeFilters() {
+    const searchInput = document.getElementById('userSearch');
+    const statusFilter = document.getElementById('statusFilter');
+    const typeFilter = document.getElementById('typeFilter');
+    const cardFilter = document.getElementById('cardFilter');
+    
+    [searchInput, statusFilter, typeFilter, cardFilter].forEach(element => {
+        if (element) {
+            element.addEventListener('change', applyFilters);
+            element.addEventListener('keyup', applyFilters);
+        }
+    });
+}
+
+function initializeSelection() {
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    const userCheckboxes = document.querySelectorAll('.user-checkbox');
+    
+    if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', function() {
+            userCheckboxes.forEach(checkbox => {
+                checkbox.checked = this.checked;
+            });
+            updateSelection();
+        });
+    }
+    
+    userCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updateSelection);
+    });
+}
+
+function toggleFilters() {
+    const panel = document.getElementById('filterPanel');
+    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+
+function applyFilters() {
+    const searchTerm = document.getElementById('userSearch')?.value.toLowerCase() || '';
+    const statusFilter = document.getElementById('statusFilter')?.value || '';
+    const typeFilter = document.getElementById('typeFilter')?.value || '';
+    const cardFilter = document.getElementById('cardFilter')?.value || '';
+    
+    const rows = document.querySelectorAll('#usersTable tbody tr[data-user-id]');
+    let visibleCount = 0;
+    
+    rows.forEach(row => {
+        const userId = row.dataset.userId;
+        const user = allUsers.find(u => u.customer_id === userId);
+        
+        if (!user) return;
+        
+        let visible = true;
+        
+        // Search filter
+        if (searchTerm) {
+            const searchableText = [
+                user.customer_name || user.name || '',
+                user.email || '',
+                user.customer_id || '',
+                user.phone || ''
+            ].join(' ').toLowerCase();
+            
+            if (!searchableText.includes(searchTerm)) {
+                visible = false;
+            }
+        }
+        
+        // Status filter
+        if (statusFilter && user.membership_status !== statusFilter) {
+            visible = false;
+        }
+        
+        // Type filter
+        if (typeFilter && user.customer_type !== typeFilter) {
+            visible = false;
+        }
+        
+        // Card filter
+        if (cardFilter) {
+            if (cardFilter === 'assigned' && !user.rfid_card_uid) {
+                visible = false;
+            } else if (cardFilter === 'unassigned' && user.rfid_card_uid) {
+                visible = false;
+            }
+        }
+        
+        row.style.display = visible ? '' : 'none';
+        if (visible) visibleCount++;
+    });
+    
+    document.getElementById('userCount').textContent = `${visibleCount} users`;
+}
+
+function clearFilters() {
+    const searchInput = document.getElementById('userSearch');
+    const statusFilter = document.getElementById('statusFilter');
+    const typeFilter = document.getElementById('typeFilter');
+    const cardFilter = document.getElementById('cardFilter');
+    
+    if (searchInput) searchInput.value = '';
+    if (statusFilter) statusFilter.value = '';
+    if (typeFilter) typeFilter.value = '';
+    if (cardFilter) cardFilter.value = '';
+    
+    applyFilters();
+}
+
+function updateSelection() {
+    const checkboxes = document.querySelectorAll('.user-checkbox:checked');
+    selectedUsers = Array.from(checkboxes).map(cb => cb.value);
+    
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    const allCheckboxes = document.querySelectorAll('.user-checkbox');
+    
+    if (selectAllCheckbox) {
+        selectAllCheckbox.indeterminate = selectedUsers.length > 0 && selectedUsers.length < allCheckboxes.length;
+        selectAllCheckbox.checked = selectedUsers.length === allCheckboxes.length;
+    }
+}
+
+function selectAllUsers() {
+    document.querySelectorAll('.user-checkbox').forEach(cb => cb.checked = true);
+    updateSelection();
+}
+
+function deselectAllUsers() {
+    document.querySelectorAll('.user-checkbox').forEach(cb => cb.checked = false);
+    updateSelection();
+}
+
+function viewUser(userId) {
+    const user = allUsers.find(u => u.customer_id === userId);
+    if (!user) return;
+    
+    const modal = new bootstrap.Modal(document.getElementById('userDetailsModal'));
+    document.getElementById('userDetailsContent').innerHTML = `
+        <div class="row">
+            <div class="col-md-6">
+                <h6>Basic Information</h6>
+                <table class="table table-sm">
+                    <tr><td><strong>Customer ID:</strong></td><td><code>${user.customer_id}</code></td></tr>
+                    <tr><td><strong>Name:</strong></td><td>${user.customer_name || user.name || 'Not provided'}</td></tr>
+                    <tr><td><strong>Email:</strong></td><td>${user.email || 'Not provided'}</td></tr>
+                    <tr><td><strong>Phone:</strong></td><td>${user.phone || 'Not provided'}</td></tr>
+                    <tr><td><strong>Type:</strong></td><td><span class="badge bg-secondary">${user.customer_type || 'REGULAR'}</span></td></tr>
+                    <tr><td><strong>Status:</strong></td><td><span class="badge bg-success">${user.membership_status || 'UNKNOWN'}</span></td></tr>
+                </table>
+            </div>
+            <div class="col-md-6">
+                <h6>Account Statistics</h6>
+                <table class="table table-sm">
+                    <tr><td><strong>Total Spent:</strong></td><td class="text-success">$${(user.total_spent || 0).toFixed(2)}</td></tr>
+                    <tr><td><strong>Total Visits:</strong></td><td>${user.total_visits || 0}</td></tr>
+                    <tr><td><strong>RFID Card:</strong></td><td>${user.rfid_card_uid ? '<code>' + user.rfid_card_uid + '</code>' : '<span class="text-muted">Not assigned</span>'}</td></tr>
+                    <tr><td><strong>Created:</strong></td><td>${user.created_at ? user.created_at.slice(0, 10) : 'Unknown'}</td></tr>
+                    <tr><td><strong>Last Visit:</strong></td><td>${user.last_visit ? user.last_visit.slice(0, 10) : 'Never'}</td></tr>
+                </table>
+            </div>
+        </div>
+        <hr>
+        <h6>Recent Activity</h6>
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            Recent transactions and activity data would be displayed here.
+        </div>
+    `;
+    modal.show();
+}
+
+function editUser(userId) {
+    showNotification(`Opening edit form for user ${userId}`, 'info');
+    // Implementation for edit form
+}
+
+function suspendUser(userId) {
+    if (confirm('Suspend this user account? They will not be able to access the store.')) {
+        showNotification(`User ${userId} suspended`, 'warning');
+        // Implementation for suspension
+    }
+}
+
+function activateUser(userId) {
+    if (confirm('Activate this user account?')) {
+        showNotification(`User ${userId} activated`, 'success');
+        // Implementation for activation
+    }
+}
+
+function assignCard(userId) {
+    showNotification(`Opening RFID card assignment for user ${userId}`, 'info');
+    // Redirect to RFID assignment page
+    window.location.href = '/admin/register-card';
+}
+
+function viewTransactions(userId) {
+    showNotification(`Loading transactions for user ${userId}`, 'info');
+    // Implementation to view transactions
+}
+
+function deleteUser(userId) {
+    if (confirm('Delete this user permanently? This action cannot be undone.')) {
+        showNotification(`User ${userId} deleted`, 'warning');
+        // Implementation for deletion
+    }
+}
+
+function editUserFromModal() {
+    showNotification('Opening user edit form...', 'info');
+    // Implementation for editing from modal
+}
+
+function exportUsers() {
+    showNotification('Exporting user data...', 'info');
+    // Implementation for export
+}
+
+function showNotification(message, type) {
+    const alertClass = type === 'success' ? 'alert-success' : 
+                      type === 'error' ? 'alert-danger' : 
+                      type === 'warning' ? 'alert-warning' : 'alert-info';
+    
+    const notification = `
+        <div class="alert ${alertClass} alert-dismissible fade show position-fixed" 
+             style="top: 20px; right: 20px; z-index: 9999; min-width: 300px;">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', notification);
+    
+    setTimeout(() => {
+        const alerts = document.querySelectorAll('.alert');
+        alerts.forEach(alert => {
+            if (alert.textContent.includes(message)) {
+                alert.remove();
+            }
+        });
+    }, 3000);
+}
+</script>
 {% endblock %}

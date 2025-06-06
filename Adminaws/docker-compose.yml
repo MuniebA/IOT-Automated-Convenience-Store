@@ -9,12 +9,14 @@ services:
       # Flask Configuration
       - FLASK_APP=app.py
       - FLASK_ENV=production
-      - SECRET_KEY=${SECRET_KEY:-iot-store-secret-key-prod-change-this}
+      - SECRET_KEY=iot-store-secret-key-prod-change-this-123456789
       
       # AWS Configuration
       - AWS_REGION=${AWS_REGION:-us-east-1}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
       
       # DynamoDB Tables
       - CUSTOMERS_TABLE=${CUSTOMERS_TABLE:-iot-convenience-store-customers-production}

@@ -70,7 +70,7 @@
                     <div class="icon bg-success text-white">
                         <i class="fas fa-dollar-sign"></i>
                     </div>
-                    <div class="value text-success">${{ "%.2f"|format(analytics.total_sales_today) }}</div>
+                    <div class="value text-success">${{ "%.2f"|format(analytics.total_sales_today or 0) }}</div>
                     <div class="label">Total Revenue</div>
                 </div>
                 <div class="trend-indicator">
@@ -94,7 +94,7 @@
                     <div class="icon bg-primary text-white">
                         <i class="fas fa-users"></i>
                     </div>
-                    <div class="value text-primary">{{ analytics.profiled_customers }}</div>
+                    <div class="value text-primary">{{ analytics.profiled_customers or 0 }}</div>
                     <div class="label">Active Customers</div>
                 </div>
                 <div class="trend-indicator">
@@ -186,13 +186,19 @@
             <div class="card-body">
                 <canvas id="customerSegmentChart"></canvas>
                 <div class="mt-3">
-                    {% for cluster in analytics.customer_clusters %}
+                    {% set cluster_colors = ['primary', 'success', 'warning', 'info', 'secondary'] %}
+                    {% for cluster in analytics.customer_clusters or [] %}
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <div class="d-flex align-items-center">
-                            <div class="color-indicator bg-{% cycle 'primary', 'success', 'warning', 'info' %} me-2"></div>
-                            <span class="small">{{ cluster.cluster_name }}</span>
+                            <div class="color-indicator bg-{{ cluster_colors[loop.index0 % cluster_colors|length] }} me-2" style="width: 12px; height: 12px; border-radius: 50%;"></div>
+                            <span class="small">{{ cluster.cluster_name or 'Unknown Cluster' }}</span>
                         </div>
                         <span class="badge bg-light text-dark">{{ cluster.members.member_count or 0 }}</span>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-3">
+                        <i class="fas fa-users-slash text-muted mb-2"></i>
+                        <p class="text-muted small">No customer segments available</p>
                     </div>
                     {% endfor %}
                 </div>
@@ -201,45 +207,41 @@
     </div>
 </div>
 
-<!-- AI Insights & Customer Behavior -->
+<!-- AI Insights Section -->
 <div class="row mb-4">
     <div class="col-lg-6">
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0">
                     <i class="fas fa-brain me-2"></i>
-                    AI-Powered Insights
+                    AI Insights
+                    {% if analytics.confidence_score %}
+                    <span class="badge bg-success ms-2">{{ (analytics.confidence_score * 100)|round }}% Confidence</span>
+                    {% endif %}
                 </h5>
             </div>
             <div class="card-body">
-                <div class="insight-item mb-3">
-                    <div class="d-flex align-items-center mb-2">
-                        <i class="fas fa-lightbulb text-warning me-2"></i>
-                        <strong>Revenue Opportunity</strong>
-                        <span class="badge bg-success ms-auto">+$2,340</span>
+                {% if analytics.deepseek_insights %}
+                    {% for insight in analytics.deepseek_insights[:3] %}
+                    <div class="insight-item mb-3">
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="fas fa-lightbulb text-warning me-2"></i>
+                            <strong>AI Recommendation {{ loop.index }}</strong>
+                        </div>
+                        <p class="small text-muted">{{ insight }}</p>
                     </div>
-                    <p class="small text-muted mb-2">University students show 85% higher response to beverage discounts between 2-4 PM. Consider targeted promotions.</p>
-                    <button class="btn btn-outline-primary btn-sm">Implement Suggestion</button>
+                    {% endfor %}
+                {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    AI insights are being generated. Please check back shortly.
                 </div>
+                {% endif %}
                 
-                <div class="insight-item mb-3">
-                    <div class="d-flex align-items-center mb-2">
-                        <i class="fas fa-users text-info me-2"></i>
-                        <strong>Customer Retention</strong>
-                        <span class="badge bg-warning ms-auto">Risk</span>
-                    </div>
-                    <p class="small text-muted mb-2">23 VIP customers haven't visited in 2+ weeks. Send personalized offers to prevent churn.</p>
-                    <button class="btn btn-outline-warning btn-sm">Send Campaign</button>
-                </div>
-                
-                <div class="insight-item mb-3">
-                    <div class="d-flex align-items-center mb-2">
-                        <i class="fas fa-chart-line text-success me-2"></i>
-                        <strong>Product Performance</strong>
-                        <span class="badge bg-info ms-auto">Trending</span>
-                    </div>
-                    <p class="small text-muted mb-2">Premium coffee sales increased 45% after smart shelf placement. Replicate layout for other premium items.</p>
-                    <button class="btn btn-outline-success btn-sm">Apply Layout</button>
+                <div class="text-center">
+                    <button class="btn btn-outline-primary btn-sm" onclick="refreshAIAnalysis()">
+                        <i class="fas fa-sync-alt me-2"></i>Refresh AI Analysis
+                    </button>
                 </div>
             </div>
         </div>
@@ -248,152 +250,88 @@
     <div class="col-lg-6">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="fas fa-shopping-bag me-2"></i>
-                    Purchase Behavior Analysis
-                </h5>
+                <h5 class="mb-0">Performance Summary</h5>
             </div>
             <div class="card-body">
-                <!-- Heatmap of peak hours -->
-                <div class="mb-4">
-                    <h6>Peak Shopping Hours</h6>
-                    <div class="heatmap-container">
-                        <div class="row g-1">
-                            {% for hour in range(6, 23) %}
-                            <div class="col">
-                                <div class="heatmap-cell" 
-                                     style="background-color: {% if hour in [12,13,17,18] %}rgba(40,167,69,0.8){% elif hour in [11,14,16,19] %}rgba(255,193,7,0.8){% else %}rgba(108,117,125,0.3){% endif %}">
-                                    <small>{{ hour }}:00</small>
-                                </div>
-                            </div>
-                            {% endfor %}
+                <div class="row g-3">
+                    <div class="col-6">
+                        <div class="text-center p-2 bg-light rounded">
+                            <div class="fw-bold text-primary h4">{{ analytics.active_customers or 0 }}</div>
+                            <small class="text-muted">Active Sessions</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="text-center p-2 bg-light rounded">
+                            <div class="fw-bold text-success h4">${{ "%.0f"|format(analytics.total_sales_today or 0) }}</div>
+                            <small class="text-muted">Today's Sales</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="text-center p-2 bg-light rounded">
+                            <div class="fw-bold text-info h4">{{ analytics.profiled_customers or 0 }}</div>
+                            <small class="text-muted">Customers</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="text-center p-2 bg-light rounded">
+                            <div class="fw-bold text-warning h4">{{ "%.1f"|format(analytics.system_health or 100) }}%</div>
+                            <small class="text-muted">System Health</small>
                         </div>
                     </div>
                 </div>
                 
-                <!-- Top performing categories -->
-                <div class="mb-4">
-                    <h6>Category Performance</h6>
-                    <div class="category-performance">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span>Beverages</span>
-                            <div class="d-flex align-items-center">
-                                <div class="progress me-2" style="width: 100px; height: 8px;">
-                                    <div class="progress-bar bg-success" style="width: 85%"></div>
-                                </div>
-                                <small class="text-success">85%</small>
-                            </div>
-                        </div>
-                        
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span>Snacks</span>
-                            <div class="d-flex align-items-center">
-                                <div class="progress me-2" style="width: 100px; height: 8px;">
-                                    <div class="progress-bar bg-info" style="width: 70%"></div>
-                                </div>
-                                <small class="text-info">70%</small>
-                            </div>
-                        </div>
-                        
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span>Fresh Fruits</span>
-                            <div class="d-flex align-items-center">
-                                <div class="progress me-2" style="width: 100px; height: 8px;">
-                                    <div class="progress-bar bg-warning" style="width: 55%"></div>
-                                </div>
-                                <small class="text-warning">55%</small>
-                            </div>
-                        </div>
-                    </div>
+                {% if analytics.deepseek_api_available %}
+                <div class="alert alert-success mt-3">
+                    <i class="fas fa-check-circle me-2"></i>
+                    DeepSeek AI Analytics: Active
                 </div>
-                
-                <!-- Shopping patterns -->
-                <div>
-                    <h6>Shopping Patterns</h6>
-                    <div class="row g-2">
-                        <div class="col-6">
-                            <div class="text-center p-2 bg-light rounded">
-                                <div class="fw-bold text-primary">3.2</div>
-                                <small class="text-muted">Avg Items/Visit</small>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="text-center p-2 bg-light rounded">
-                                <div class="fw-bold text-success">4.7 min</div>
-                                <small class="text-muted">Avg Visit Time</small>
-                            </div>
-                        </div>
-                    </div>
+                {% else %}
+                <div class="alert alert-warning mt-3">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    AI Analytics: Limited Mode
                 </div>
+                {% endif %}
             </div>
         </div>
     </div>
 </div>
 
-<!-- Detailed Analytics Tables -->
+<!-- Additional Analytics -->
 <div class="row">
     <div class="col-lg-8">
         <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Top Performing Products</h5>
-                <div class="btn-group btn-group-sm">
-                    <button class="btn btn-outline-secondary active" onclick="sortProducts('revenue')">By Revenue</button>
-                    <button class="btn btn-outline-secondary" onclick="sortProducts('quantity')">By Quantity</button>
-                    <button class="btn btn-outline-secondary" onclick="sortProducts('margin')">By Margin</button>
-                </div>
+            <div class="card-header">
+                <h5 class="mb-0">Recent Activity</h5>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
-                    <table class="table table-hover">
+                    <table class="table table-sm">
                         <thead>
                             <tr>
-                                <th>Product</th>
-                                <th>Category</th>
-                                <th>Revenue</th>
-                                <th>Qty Sold</th>
-                                <th>Margin</th>
-                                <th>Trend</th>
+                                <th>Time</th>
+                                <th>Activity</th>
+                                <th>Value</th>
+                                <th>Status</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
-                                <td>
-                                    <div class="d-flex align-items-center">
-                                        <i class="fas fa-coffee text-primary me-2"></i>
-                                        <span>Premium Coffee</span>
-                                    </div>
-                                </td>
-                                <td>Beverages</td>
-                                <td class="text-success fw-bold">$1,247</td>
-                                <td>78</td>
-                                <td>32%</td>
-                                <td><i class="fas fa-arrow-up text-success"></i> +15%</td>
+                                <td>{{ 'now'|strftime('%H:%M') }}</td>
+                                <td>System Check</td>
+                                <td>All systems operational</td>
+                                <td><span class="badge bg-success">Active</span></td>
                             </tr>
                             <tr>
-                                <td>
-                                    <div class="d-flex align-items-center">
-                                        <i class="fas fa-battery-full text-warning me-2"></i>
-                                        <span>Energy Drink</span>
-                                    </div>
-                                </td>
-                                <td>Beverages</td>
-                                <td class="text-success fw-bold">$895</td>
-                                <td>156</td>
-                                <td>28%</td>
-                                <td><i class="fas fa-arrow-up text-success"></i> +8%</td>
+                                <td>{{ 'now'|strftime('%H:%M') }}</td>
+                                <td>Sales Processing</td>
+                                <td>${{ "%.2f"|format(analytics.total_sales_today or 0) }}</td>
+                                <td><span class="badge bg-info">Processing</span></td>
                             </tr>
                             <tr>
-                                <td>
-                                    <div class="d-flex align-items-center">
-                                        <i class="fas fa-candy-cane text-info me-2"></i>
-                                        <span>Chocolate Bar</span>
-                                    </div>
-                                </td>
-                                <td>Snacks</td>
-                                <td class="text-success fw-bold">$623</td>
-                                <td>125</td>
-                                <td>45%</td>
-                                <td><i class="fas fa-arrow-down text-danger"></i> -3%</td>
+                                <td>{{ 'now'|strftime('%H:%M') }}</td>
+                                <td>Customer Analytics</td>
+                                <td>{{ analytics.profiled_customers or 0 }} profiles</td>
+                                <td><span class="badge bg-primary">Updated</span></td>
                             </tr>
                         </tbody>
                     </table>
@@ -405,23 +343,29 @@
     <div class="col-lg-4">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">Discount Effectiveness</h5>
+                <h5 class="mb-0">Quick Actions</h5>
             </div>
             <div class="card-body">
-                {% for discount in analytics.discount_effectiveness[:5] %}
-                <div class="discount-item mb-3">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                        <span class="small fw-bold">{{ discount.discount_details.discount_percentage or 10 }}% Off</span>
-                        <span class="badge bg-{% if discount.customer_response.action_taken == 'purchased' %}success{% elif discount.customer_response.action_taken == 'shown' %}warning{% else %}secondary{% endif %}">
-                            {{ discount.customer_response.action_taken or 'shown' }}
-                        </span>
-                    </div>
-                    <div class="progress mb-1" style="height: 6px;">
-                        <div class="progress-bar bg-success" style="width: {% if discount.customer_response.action_taken == 'purchased' %}85{% elif discount.customer_response.action_taken == 'shown' %}40{% else %}15{% endif %}%"></div>
-                    </div>
-                    <small class="text-muted">{{ discount.discount_details.recommendation_source or 'AI Engine' }}</small>
+                <div class="d-grid gap-2">
+                    <button class="btn btn-primary" onclick="exportAnalytics()">
+                        <i class="fas fa-download me-2"></i>Export Report
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="refreshAnalytics()">
+                        <i class="fas fa-sync-alt me-2"></i>Refresh Data
+                    </button>
+                    <button class="btn btn-outline-info" onclick="scheduledReports()">
+                        <i class="fas fa-calendar me-2"></i>Schedule Report
+                    </button>
                 </div>
-                {% endfor %}
+                
+                <hr>
+                
+                <div class="text-center">
+                    <small class="text-muted">
+                        Last updated: {{ 'now'|strftime('%H:%M:%S') }}<br>
+                        Next refresh: {{ 'now'|strftime('%H:%M:%S') }}
+                    </small>
+                </div>
             </div>
         </div>
     </div>
@@ -430,19 +374,47 @@
 
 {% block extra_js %}
 <script>
+// Analytics JavaScript
 let currentChart = 'revenue';
-let analyticsData = {{ analytics|tojson }};
+let chartInstances = {};
+let updateInterval = null;
 
 document.addEventListener('DOMContentLoaded', function() {
-    initializeCharts();
-    updateDashboard();
+    console.log('Analytics page loaded');
+    
+    // Initialize charts if Chart.js is available
+    if (typeof Chart !== 'undefined') {
+        initializeCharts();
+    }
+    
+    // Setup controlled updates
+    setupControlledUpdates();
 });
 
+// Cleanup when page unloads
+window.addEventListener('beforeunload', function() {
+    cleanupCharts();
+    if (updateInterval) {
+        clearInterval(updateInterval);
+    }
+});
+
+function cleanupCharts() {
+    Object.keys(chartInstances).forEach(key => {
+        if (chartInstances[key]) {
+            chartInstances[key].destroy();
+            delete chartInstances[key];
+        }
+    });
+}
+
 function initializeCharts() {
+    cleanupCharts();
+    
     // Main trend chart
     const trendCtx = document.getElementById('mainTrendChart');
     if (trendCtx) {
-        new Chart(trendCtx, {
+        chartInstances.mainTrend = new Chart(trendCtx, {
             type: 'line',
             data: {
                 labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
@@ -453,57 +425,24 @@ function initializeCharts() {
                     backgroundColor: 'rgba(5, 150, 105, 0.1)',
                     tension: 0.4,
                     fill: true
-                }, {
-                    label: 'Customers',
-                    data: [45, 52, 68, 61, 78, 89, 72],
-                    borderColor: '#3b82f6',
-                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                    tension: 0.4,
-                    fill: true,
-                    yAxisID: 'y1'
                 }]
             },
             options: {
                 responsive: true,
-                interaction: {
-                    mode: 'index',
-                    intersect: false,
-                },
+                maintainAspectRatio: false,
+                animation: { duration: 0 },
                 scales: {
                     y: {
-                        type: 'linear',
-                        display: true,
-                        position: 'left',
+                        beginAtZero: true,
                         ticks: {
                             callback: function(value) {
                                 return '$' + value;
                             }
                         }
-                    },
-                    y1: {
-                        type: 'linear',
-                        display: true,
-                        position: 'right',
-                        grid: {
-                            drawOnChartArea: false,
-                        },
                     }
                 },
                 plugins: {
-                    legend: {
-                        position: 'top',
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                if (context.datasetIndex === 0) {
-                                    return 'Revenue: $' + context.parsed.y;
-                                } else {
-                                    return 'Customers: ' + context.parsed.y;
-                                }
-                            }
-                        }
-                    }
+                    legend: { position: 'top' }
                 }
             }
         });
@@ -512,101 +451,145 @@ function initializeCharts() {
     // Customer segment chart
     const segmentCtx = document.getElementById('customerSegmentChart');
     if (segmentCtx) {
-        new Chart(segmentCtx, {
+        chartInstances.customerSegment = new Chart(segmentCtx, {
             type: 'doughnut',
             data: {
                 labels: ['University Students', 'Young Professionals', 'VIP Members', 'Others'],
                 datasets: [{
                     data: [45, 30, 15, 10],
-                    backgroundColor: [
-                        '#3b82f6',
-                        '#059669',
-                        '#f59e0b',
-                        '#6366f1'
-                    ],
+                    backgroundColor: ['#3b82f6', '#059669', '#f59e0b', '#6366f1'],
                     borderWidth: 0
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    }
-                }
+                plugins: { legend: { display: false } },
+                animation: { duration: 0 }
             }
         });
     }
 }
 
+function setupControlledUpdates() {
+    if (window.location.pathname.includes('analytics') && !updateInterval) {
+        updateInterval = setInterval(() => {
+            if (!document.hidden && !document.body.classList.contains('updating')) {
+                updateAnalyticsData();
+            }
+        }, 60000); // Update every minute
+    }
+}
+
+function updateAnalyticsData() {
+    if (document.body.classList.contains('updating')) return;
+    
+    document.body.classList.add('updating');
+    
+    fetch('/api/dashboard/realtime')
+        .then(response => response.json())
+        .then(data => updateMetricsOnly(data))
+        .catch(error => console.error('Update failed:', error))
+        .finally(() => document.body.classList.remove('updating'));
+}
+
+function updateMetricsOnly(data) {
+    try {
+        // Update sales figures
+        const salesElement = document.querySelector('.value.text-success');
+        if (salesElement && data.total_sales_today !== undefined) {
+            salesElement.textContent = `$${data.total_sales_today.toFixed(2)}`;
+        }
+        
+        // Update customer count
+        const customerElement = document.querySelector('.value.text-primary');
+        if (customerElement && data.active_customers !== undefined) {
+            customerElement.textContent = data.active_customers;
+        }
+        
+        console.log('Metrics updated successfully');
+    } catch (error) {
+        console.error('Error updating metrics:', error);
+    }
+}
+
 function switchChart(type) {
     currentChart = type;
-    
-    // Update button states
-    document.querySelectorAll('.btn-group button').forEach(btn => {
+    const buttons = document.querySelectorAll('.btn-group-sm button');
+    buttons.forEach(btn => {
         btn.classList.remove('active');
+        if (btn.textContent.toLowerCase().includes(type)) {
+            btn.classList.add('active');
+        }
     });
-    event.target.classList.add('active');
-    
-    // Update chart (implementation depends on chart library)
     showNotification(`Switched to ${type} view`, 'info');
 }
 
 function updateAnalytics() {
-    const timePeriod = document.getElementById('timePeriod').value;
-    const metricType = document.getElementById('metricType').value;
-    
+    const timePeriod = document.getElementById('timePeriod')?.value || 'week';
+    const metricType = document.getElementById('metricType')?.value || 'revenue';
     showNotification(`Updating analytics for ${timePeriod} - ${metricType}`, 'info');
-    // Implementation for updating analytics
+    setTimeout(() => updateMetricsOnly({}), 1000);
 }
 
 function applyFilters() {
     showNotification('Applying filters...', 'info');
-    // Implementation for applying filters
+    const applyBtn = document.querySelector('.btn-primary');
+    if (applyBtn) {
+        applyBtn.disabled = true;
+        setTimeout(() => applyBtn.disabled = false, 2000);
+    }
 }
 
 function resetFilters() {
-    document.getElementById('timePeriod').value = 'week';
-    document.getElementById('metricType').value = 'revenue';
-    document.getElementById('comparison').value = 'previous';
+    const timePeriod = document.getElementById('timePeriod');
+    const metricType = document.getElementById('metricType');
+    const comparison = document.getElementById('comparison');
+    
+    if (timePeriod) timePeriod.value = 'week';
+    if (metricType) metricType.value = 'revenue';
+    if (comparison) comparison.value = 'previous';
+    
     updateAnalytics();
-}
-
-function sortProducts(criteria) {
-    showNotification(`Sorting products by ${criteria}`, 'info');
-    // Implementation for sorting products
 }
 
 function exportAnalytics() {
     showNotification('Exporting analytics report...', 'info');
-    // Implementation for export
 }
 
 function scheduledReports() {
     showNotification('Opening scheduled reports configuration...', 'info');
-    // Implementation for scheduled reports
 }
 
 function refreshAnalytics() {
     showNotification('Refreshing analytics data...', 'info');
-    setTimeout(() => {
-        location.reload();
-    }, 1000);
+    const refreshBtn = document.querySelector('.btn-outline-success');
+    if (refreshBtn) {
+        refreshBtn.disabled = true;
+        setTimeout(() => location.reload(), 2000);
+    }
 }
 
-function updateDashboard() {
-    // Real-time updates (implement WebSocket or polling)
-    setInterval(() => {
-        // Update key metrics
-        fetch('/api/dashboard/realtime')
-            .then(response => response.json())
-            .then(data => {
-                // Update dashboard with new data
-                console.log('Dashboard updated', data);
-            })
-            .catch(error => console.error('Update failed:', error));
-    }, 30000);
+function refreshAIAnalysis() {
+    showNotification('Refreshing AI analysis...', 'info');
+    
+    fetch('/api/admin/refresh-ai-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('AI analysis refreshed successfully!', 'success');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showNotification('Failed to refresh AI analysis', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error refreshing AI analysis:', error);
+        showNotification('Error refreshing AI analysis', 'error');
+    });
 }
 
 function showNotification(message, type) {
@@ -614,31 +597,52 @@ function showNotification(message, type) {
                       type === 'error' ? 'alert-danger' : 
                       type === 'warning' ? 'alert-warning' : 'alert-info';
     
-    const notification = `
-        <div class="alert ${alertClass} alert-dismissible fade show position-fixed" 
-             style="top: 20px; right: 20px; z-index: 9999; min-width: 300px;">
-            ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
+    const notification = document.createElement('div');
+    notification.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+    notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    notification.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     `;
     
-    document.body.insertAdjacentHTML('beforeend', notification);
+    document.body.appendChild(notification);
     
     setTimeout(() => {
-        const alerts = document.querySelectorAll('.alert');
-        alerts.forEach(alert => {
-            if (alert.textContent.includes(message)) {
-                alert.remove();
-            }
-        });
+        if (notification.parentNode) {
+            notification.remove();
+        }
     }, 3000);
 }
 </script>
 
 <style>
-.trend-indicator {
-    text-align: center;
-    min-width: 60px;
+.chart-container {
+    position: relative;
+    height: 400px;
+    max-height: 400px;
+    overflow: hidden;
+}
+
+#mainTrendChart {
+    max-height: 300px !important;
+    height: 300px !important;
+}
+
+#customerSegmentChart {
+    max-height: 250px !important;
+    height: 250px !important;
+}
+
+canvas {
+    max-width: 100% !important;
+    max-height: 100% !important;
+    height: auto !important;
+}
+
+.stats-card {
+    min-height: 120px;
+    max-height: 200px;
+    overflow: hidden;
 }
 
 .insight-item {
@@ -647,24 +651,14 @@ function showNotification(message, type) {
     border-radius: 0 8px 8px 0;
     background: #f9fafb;
     padding: 1rem;
+    margin-bottom: 1rem;
+    max-height: 150px;
+    overflow: hidden;
 }
 
-.heatmap-container {
-    margin: 1rem 0;
-}
-
-.heatmap-cell {
-    height: 40px;
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-weight: 500;
-}
-
-.category-performance {
-    font-size: 0.875rem;
+.trend-indicator {
+    text-align: center;
+    min-width: 60px;
 }
 
 .color-indicator {
@@ -673,21 +667,14 @@ function showNotification(message, type) {
     border-radius: 50%;
 }
 
-.discount-item {
-    padding: 0.75rem;
-    background: #f8f9fa;
-    border-radius: 8px;
-}
-
 @media (max-width: 768px) {
     .stats-card .trend-indicator {
         margin-top: 1rem;
         text-align: left;
     }
     
-    .heatmap-cell {
-        height: 30px;
-        font-size: 0.75rem;
+    canvas {
+        max-height: 200px !important;
     }
 }
 </style>
